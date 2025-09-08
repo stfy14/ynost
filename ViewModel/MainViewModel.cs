@@ -301,9 +301,26 @@ namespace Ynost.ViewModels
         {
             Guid? previouslySelectedTeacherId = SelectedTeacher?.Id;
             Teachers.Clear();
-            if (newTeacherModels != null) { foreach (var model in newTeacherModels) Teachers.Add(new TeacherViewModel(model)); }
-            if (previouslySelectedTeacherId.HasValue) { SelectedTeacher = Teachers.FirstOrDefault(tvm => tvm.Id == previouslySelectedTeacherId.Value); }
-            if (SelectedTeacher == null && Teachers.Count > 0) { SelectedTeacher = Teachers[0]; }
+
+            // Добавляем проверку на null и сортировку по FullName
+            if (newTeacherModels != null)
+            {
+                var sortedModels = newTeacherModels.OrderBy(t => t.FullName);
+                foreach (var model in sortedModels)
+                {
+                    Teachers.Add(new TeacherViewModel(model));
+                }
+            }
+
+            if (previouslySelectedTeacherId.HasValue)
+            {
+                SelectedTeacher = Teachers.FirstOrDefault(tvm => tvm.Id == previouslySelectedTeacherId.Value);
+            }
+
+            if (SelectedTeacher == null && Teachers.Any())
+            {
+                SelectedTeacher = Teachers[0];
+            }
         }
 
         // Убрали Dispose, так как NetworkAvailabilityService удален
