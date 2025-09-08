@@ -1,0 +1,424 @@
+﻿<!-- File: TeacherMonitoringWindow.xaml -->
+<Window x:Class="Ynost.TeacherMonitoringWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Мониторинг учителей"
+        Height="800" Width="1200"
+        Loaded="Window_Loaded"
+        FontSize="16">
+
+    <!-- ░░░ ОСНОВНАЯ СЕТКА: контент + нижняя панель ░░░ -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <!-- (0) всё содержимое окна -->
+            <RowDefinition Height="Auto"/>
+            <!-- (1) кнопка «Сохранить» -->
+        </Grid.RowDefinitions>
+
+        <!-- ░░░ КОЛОНКИ (учителя/лог | сплиттер | детали) ░░░ -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="270"/>
+                <!-- учителя + лог -->
+                <ColumnDefinition Width="5"/>
+                <!-- вертикальный сплиттер -->
+                <ColumnDefinition Width="*"/>
+                <!-- подробный мониторинг -->
+            </Grid.ColumnDefinitions>
+
+            <!-- ░░ Левый столбец ░░ -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="2*"/>
+                    <!-- DataGrid учителей -->
+                    <RowDefinition Height="5"/>
+                    <!-- горизонтальный сплиттер -->
+                    <RowDefinition Height="*"/>
+                    <!-- ListBox логов -->
+                </Grid.RowDefinitions>
+
+                <!-- Список учителей -->
+                <DataGrid x:Name="TeachList"
+                          Grid.Row="0"
+                          ItemsSource="{Binding TeachList}"
+                          SelectedItem="{Binding SelectedTeach, Mode=TwoWay}"
+                          SelectionChanged="TeachList_SelectionChanged"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          IsReadOnly="True"
+                          Margin="8">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="ФИО"
+                                            Binding="{Binding FullName}"
+                                            Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Горизонтальный сплиттер -->
+                <GridSplitter Grid.Row="1"
+                              Height="5"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Background="#B0B0B0"
+                              ResizeDirection="Rows"/>
+
+                <!-- Мини-лог -->
+                <ListBox Grid.Row="2"
+                         ItemsSource="{Binding LogEntries}"
+                         FontFamily="Consolas"
+                         Background="#111"
+                         Foreground="LightGreen"
+                         BorderThickness="0"
+                         Margin="4"/>
+            </Grid>
+
+            <!-- Вертикальный сплиттер -->
+            <GridSplitter Grid.Column="1"
+                          Width="5"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Background="#B0B0B0"
+                          ResizeDirection="Columns"/>
+
+            <!-- ░░ Правый столбец: все 1 → 14 секции ░░ -->
+            <ScrollViewer Grid.Column="2"
+                          Margin="10"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+
+                    <!-- ========== 1. Итоги освоения — общий ========== -->
+                    
+
+                    <!-- ░░ остальная разметка 1.1 … 14 без изменений ░░ -->
+                    <!-- (скопировано из вашего файла; правок не требуется) -->
+
+                    <!-- ========== 1.1 Итоги … ========== -->
+                    <!-- ===== 1.1 Итоги освоения образовательных программ — по предметам ===== -->
+                    <TextBlock Text="1.1 Итоги освоения образовательных программ — по предметам"
+           FontWeight="Bold"
+           Margin="0,8,0,4"/>
+
+                    <ListBox ItemsSource="{Binding Boards}"
+         SelectedItem="{Binding SelectedBoard, Mode=TwoWay}"
+         BorderThickness="0"
+         Background="Transparent">
+
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="#808"
+                    BorderThickness="0,0,0,1"
+                    Padding="0,0,0,8"
+                    Margin="0,0,0,8">
+                                    <StackPanel>
+
+                                        <!-- Название предмета -->
+                                        <TextBox Text="{Binding SubjectName, UpdateSourceTrigger=PropertyChanged}"
+                             FontWeight="Bold"
+                             FontSize="14"
+                             Margin="0,0,0,4"/>
+
+                                        <!-- Таблица «кач/усп/СОУ» × 5 -->
+                                        <DataGrid ItemsSource="{Binding Metrics}"
+          AutoGenerateColumns="False"
+          HeadersVisibility="Column"
+          CanUserAddRows="False"
+          MinRowHeight="25">
+
+                                            <!--  ← ЭТОЙ ОБЁРТКИ не хватало!  -->
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header=""      Binding="{Binding Type}"  Width="70"/>
+                                                <DataGridTextColumn Header="I₂"    Binding="{Binding I2}"    Width="70"/>
+                                                <DataGridTextColumn Header="II₂"   Binding="{Binding II2}"   Width="70"/>
+                                                <DataGridTextColumn Header="III₂"  Binding="{Binding III2}"  Width="70"/>
+                                                <DataGridTextColumn Header="IV₂"   Binding="{Binding IV2}"   Width="70"/>
+                                                <DataGridTextColumn Header="Динамика"   Binding="{Binding Y}"     Width="70"/>
+                                            </DataGrid.Columns>
+
+                                        </DataGrid>
+
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- кнопки уже ВНЕ ListBox! -->
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="＋"
+            Command="{Binding AddBoardCommand}"
+            MinWidth="30"/>
+                        <Button Content="－"
+            Command="{Binding DeleteBoardCommand}"
+            MinWidth="30"
+            Margin="5,0,0,0"/>
+                    </StackPanel>
+
+
+                    <!-- ========== 2. Результаты ГИА (ЕГЭ) ========== -->
+                    <TextBlock Text="2. Результаты ГИА (ЕГЭ)" FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding GiaResults}"
+                              SelectedItem="{Binding SelectedGiaResult, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Предмет" Binding="{Binding Subject}" MinWidth="120"/>
+                            <DataGridTextColumn Header="Класс" Binding="{Binding Class}" MinWidth="60"/>
+                            <DataGridTextColumn Header="По списку" Binding="{Binding TotalListed}" MinWidth="80"/>
+                            <DataGridTextColumn Header="Участвовали" Binding="{Binding TotalParticipated}" MinWidth="90"/>
+                            <DataGridTextColumn Header="81–99 баллов, %" Binding="{Binding Pct8199}" MinWidth="110"/>
+                            <DataGridTextColumn Header="61–80 баллов, %" Binding="{Binding Pct6180}" MinWidth="110"/>
+                            <DataGridTextColumn Header="0–60 баллов, %" Binding="{Binding Pct060}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Ниже мин., %" Binding="{Binding PctBelowMin}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddGiaResultCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteGiaResultCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 3. Результаты ГИА (ОГЭ) ========== -->
+                    <TextBlock Text="3. Результаты ГИА (ОГЭ)" FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding OgeResults}"
+                              SelectedItem="{Binding SelectedOgeResult, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Предмет" Binding="{Binding Subject}" MinWidth="120"/>
+                            <DataGridTextColumn Header="Класс" Binding="{Binding Class}" MinWidth="60"/>
+                            <DataGridTextColumn Header="По списку" Binding="{Binding TotalListed}" MinWidth="80"/>
+                            <DataGridTextColumn Header="Участвовали" Binding="{Binding TotalParticipated}" MinWidth="90"/>
+                            <DataGridTextColumn Header="«5»" Binding="{Binding Cnt5}" MinWidth="50"/>
+                            <DataGridTextColumn Header="«4»" Binding="{Binding Cnt4}" MinWidth="50"/>
+                            <DataGridTextColumn Header="«3»" Binding="{Binding Cnt3}" MinWidth="50"/>
+                            <DataGridTextColumn Header="«2»" Binding="{Binding Cnt2}" MinWidth="50"/>
+                            <DataGridTextColumn Header="Ср. балл" Binding="{Binding AvgScore}" MinWidth="80"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddOgeResultCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteOgeResultCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 4. Независимая оценка качества ========== -->
+                    <TextBlock Text="4. Результаты независимой оценки качества"
+                               FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding IndependentAssessments}"
+                              SelectedItem="{Binding SelectedIndependentAssessment, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Процедура" Binding="{Binding AssessmentType}" MinWidth="150"/>
+                            <DataGridTextColumn Header="Дата" Binding="{Binding AssessmentDate}" MinWidth="90"/>
+                            <DataGridTextColumn Header="Класс/Предмет" Binding="{Binding ClassSubject}" MinWidth="130"/>
+                            <DataGridTextColumn Header="Всего" Binding="{Binding StudentsTotal}" MinWidth="60"/>
+                            <DataGridTextColumn Header="Участники, чел." Binding="{Binding StudentsParticipatedCnt}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Участники, %" Binding="{Binding StudentsParticipatedPct}" MinWidth="100"/>
+                            <DataGridTextColumn Header="Справились, чел." Binding="{Binding StudentsPassedCnt}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Справились, %" Binding="{Binding StudentsPassedPct}" MinWidth="100"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddIndependentAssessmentCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteIndependentAssessmentCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 5. Самоопределение и профориентация ========== -->
+                    <TextBlock Text="5. Самоопределение и профориентация"
+                               FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding SelfDeterminations}"
+                              SelectedItem="{Binding SelectedSelfDetermination, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Мероприятие" Binding="{Binding Name}" MinWidth="160"/>
+                            <DataGridTextColumn Header="Роль" Binding="{Binding Role}" MinWidth="100"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddSelfDeterminationCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteSelfDeterminationCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 6. Олимпиады и конкурсы ========== -->
+                    <TextBlock Text="6. Участие в олимпиадах и конкурсах"
+                               FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding StudentOlympiads}"
+                              SelectedItem="{Binding SelectedStudentOlympiad, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Событие" Binding="{Binding Name}" MinWidth="160"/>
+                            <DataGridTextColumn Header="Форма" Binding="{Binding Form}" MinWidth="90"/>
+                            <DataGridTextColumn Header="Кадет" Binding="{Binding CadetName}" MinWidth="150"/>
+                            <DataGridTextColumn Header="Результат" Binding="{Binding Result}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddStudentOlympiadCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteStudentOlympiadCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 7. Член жюри ========== -->
+                    <TextBlock Text="7. Деятельность в качестве члена жюри"
+                               FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding JuryActivities}"
+                              SelectedItem="{Binding SelectedJuryActivity, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Событие" Binding="{Binding Name}" MinWidth="160"/>
+                            <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" MinWidth="90"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddJuryActivityCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteJuryActivityCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 8. Мастер-классы ========== -->
+                    <TextBlock Text="8. Проведение мастер-классов и мероприятий"
+                               FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding MasterClasses}"
+                              SelectedItem="{Binding SelectedMasterClass, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Название" Binding="{Binding Name}" MinWidth="160"/>
+                            <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" MinWidth="90"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddMasterClassCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteMasterClassCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 9. Выступления ========== -->
+                    <TextBlock Text="9. Выступления на конференциях и семинарах"
+                               FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding Speeches}"
+                              SelectedItem="{Binding SelectedSpeech, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Название" Binding="{Binding Name}" MinWidth="160"/>
+                            <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" MinWidth="90"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddSpeechCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteSpeechCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 10. Публикации ========== -->
+                    <TextBlock Text="10. Публикации"
+                               FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding Publications}"
+                              SelectedItem="{Binding SelectedPublication, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Название" Binding="{Binding Title}" MinWidth="160"/>
+                            <DataGridTextColumn Header="Дата" Binding="{Binding PubDate}" MinWidth="90"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddPublicationCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeletePublicationCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 11. Экспериментальная/инновационная деятельность ========== -->
+                    <TextBlock Text="11. Экспериментальная и инновационная деятельность"
+                               FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding ExperimentalProjects}"
+                              SelectedItem="{Binding SelectedExperimentalProject, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Проект" Binding="{Binding ProjectName}" MinWidth="160"/>
+                            <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" MinWidth="90"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddExperimentalProjectCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteExperimentalProjectCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 12. Наставничество ========== -->
+                    <TextBlock Text="12. Наставничество"
+                               FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding Mentorships}"
+                              SelectedItem="{Binding SelectedMentorship, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Стажёр" Binding="{Binding TraineeName}" MinWidth="150"/>
+                            <DataGridTextColumn Header="Приказ №" Binding="{Binding OrderNo}" MinWidth="100"/>
+                            <DataGridTextColumn Header="Дата" Binding="{Binding OrderDate}" MinWidth="90"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddMentorshipCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteMentorshipCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 13. Методическое сопровождение ========== -->
+                    <TextBlock Text="13. Методическое сопровождение"
+                               FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding ProgramSupports}"
+                              SelectedItem="{Binding SelectedProgramSupport, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Программа" Binding="{Binding ProgramName}" MinWidth="160"/>
+                            <DataGridCheckBoxColumn Header="Есть материалы" Binding="{Binding HasMaterials}" MinWidth="120"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
+                        <Button Content="+" Command="{Binding AddProgramSupportCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteProgramSupportCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ========== 14. Профессиональные конкурсы ========== -->
+                    <TextBlock Text="14. Участие в профессиональных конкурсах"
+                               FontWeight="Bold" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding ProfessionalCompetitions}"
+                              SelectedItem="{Binding SelectedProfessionalCompetition, Mode=TwoWay}"
+                              AutoGenerateColumns="False" MinRowHeight="25">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" MinWidth="110"/>
+                            <DataGridTextColumn Header="Конкурс" Binding="{Binding Name}" MinWidth="160"/>
+                            <DataGridTextColumn Header="Достижение" Binding="{Binding Achievement}" MinWidth="120"/>
+                            <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" MinWidth="90"/>
+                            <DataGridTextColumn Header="Ссылка" Binding="{Binding DocScan}" MinWidth="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                        <Button Content="+" Command="{Binding AddProfessionalCompetitionCommand}" MinWidth="30"/>
+                        <Button Content="–" Command="{Binding DeleteProfessionalCompetitionCommand}" MinWidth="30" Margin="5,0,0,0"/>
+                    </StackPanel>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- ░░░ Нижняя панель: кнопка «Сохранить» ░░░ -->
+        <StackPanel Grid.Row="1"
+                    Grid.ColumnSpan="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="10">
+            <Button Content="Сохранить"
+                    Command="{Binding SaveCommand}"
+                    Padding="12,6"/>
+        </StackPanel>
+
+    </Grid>
+</Window>

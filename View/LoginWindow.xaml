@@ -1,0 +1,47 @@
+﻿<Window x:Class="Ynost.View.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Ynost.ViewModels"
+        mc:Ignorable="d"
+        Title="Авторизация" Height="230" Width="350" 
+    WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize" ShowInTaskbar="False"
+        FocusManager.FocusedElement="{Binding ElementName=UsernameTextBox}">
+    <Window.DataContext>
+        <vm:LoginViewModel/>
+    </Window.DataContext>
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <!-- Для CheckBox -->
+            <RowDefinition Height="Auto"/>
+            <!-- Для сообщения об ошибке -->
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Логин:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+        <TextBox Grid.Row="0" Grid.Column="1" x:Name="UsernameTextBox" Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,5" Padding="3"/>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Пароль:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+        <PasswordBox Grid.Row="1" Grid.Column="1" x:Name="PasswordBox" PasswordChanged="PasswordBox_PasswordChanged" Margin="0,0,0,5" Padding="3"/>
+
+        <CheckBox Grid.Row="2" Grid.Column="1" Content="Запомнить меня" 
+                  IsChecked="{Binding RememberMe}" Margin="0,0,0,10"/>
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding ErrorMessage}" Foreground="Red" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Войти" Command="{Binding LoginCommand}" IsDefault="True" MinWidth="80" Margin="0,0,10,0" Padding="8,3"/>
+            <Button Content="Отмена" IsCancel="True" MinWidth="80" Padding="8,3"/>
+        </StackPanel>
+    </Grid>
+</Window>
