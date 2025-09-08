@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using Ynost.Models;
 using Ynost.ViewModels;
+using System.Threading.Tasks;
 
 namespace Ynost
 {
@@ -57,6 +58,28 @@ namespace Ynost
                 _vm.SelectTeacherCommand.Execute(t);
         }
 
+        private async void TeachList_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+        {
+            if (e.EditAction != DataGridEditAction.Commit || !(e.Row.Item is Teach editedTeach))
+            {
+                return;
+            }
+
+            var textBox = e.EditingElement as TextBox;
+            if (textBox == null) return;
+            string newFullName = textBox.Text;
+
+            // Вызываем метод ViewModel для сохранения, если имя действительно изменилось
+            if (editedTeach.FullName != newFullName)
+            {
+                // Используем Dispatcher, чтобы избежать проблем с потоками при ожидании
+                await Dispatcher.InvokeAsync(async () =>
+                {
+                    await _vm.UpdateTeachNameAsync(editedTeach.Id, newFullName);
+                });
+            }
+        }
+
         private void MonitoringGrid_RowEditEnding(object sender, DataGridRowEditEndingEventArgs e)
         {
             if (e.EditAction != DataGridEditAction.Commit) return;
@@ -72,5 +95,10 @@ namespace Ynost
         private void DataGrid_PreparingCellForEdit(object sender, DataGridPreparingCellForEditEventArgs e) { }
         private void DataGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) { }
         private void Button_Click_1(object sender, RoutedEventArgs e) { }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+
+        }
     }
 }

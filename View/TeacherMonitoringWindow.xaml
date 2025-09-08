@@ -46,8 +46,9 @@
                           SelectionChanged="TeachList_SelectionChanged"
                           AutoGenerateColumns="False"
                           CanUserAddRows="False"
-                          IsReadOnly="True"
-                          Margin="8">
+                          IsReadOnly="False"
+                          Margin="8,8,8,0"
+                          CellEditEnding="TeachList_CellEditEnding">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="ФИО"
                                             Binding="{Binding FullName}"
@@ -63,6 +64,12 @@
                               Background="#B0B0B0"
                               ResizeDirection="Rows"/>
 
+                <!-- Кнопки добавления/удаления учителя -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,6,0,0">
+                    <Button Content="Добавить" Command="{Binding AddTeachCommand}" HorizontalAlignment="Center" Click="Button_Click" Padding="15,2"/>
+                    <Button Content="Удалить" Command="{Binding DeleteTeachCommand}" Margin="20,0,0,0" HorizontalAlignment="Center" Padding="15,2"/>
+                </StackPanel>
+
                 <!-- Мини-лог -->
                 <ListBox Grid.Row="2"
                          ItemsSource="{Binding LogEntries}"
@@ -70,7 +77,7 @@
                          Background="#111"
                          Foreground="LightGreen"
                          BorderThickness="0"
-                         Margin="4"/>
+                         Margin="4,40,4,4"/>
             </Grid>
 
             <!-- Вертикальный сплиттер -->
@@ -89,7 +96,7 @@
                 <StackPanel>
 
                     <!-- ========== 1. Итоги освоения — общий ========== -->
-                    
+
 
                     <!-- ░░ остальная разметка 1.1 … 14 без изменений ░░ -->
                     <!-- (скопировано из вашего файла; правок не требуется) -->

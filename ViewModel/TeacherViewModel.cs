@@ -39,7 +39,18 @@ namespace Ynost.ViewModels
 
         // 3) Несколько «одноуровневых» свойств для отображения в UI:
         public Guid Id => _model.Id;
-        public string FullName => _model.FullName;
+        public string FullName
+        {
+            get => _model.FullName;
+            set
+            {
+                if (_model.FullName != value)
+                {
+                    _model.FullName = value;
+                    OnPropertyChanged(); // Уведомляем UI об изменении
+                }
+            }
+        }
         // (Если хотите, можете сделать сеттер для FullName и редактировать его из UI,
         // но тогда нужно будет вызывать OnPropertyChanged(nameof(FullName)).)
 

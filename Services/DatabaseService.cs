@@ -166,6 +166,7 @@ ORDER BY subject, quarter;";
         }
 
         #endregion
+
         public string? LastError { get; private set; }
 
         private static string FormatError(Exception ex) =>
@@ -358,7 +359,7 @@ VALUES (
 
         #endregion
 
-        #region TeacherMonitoring
+        #region Teacher/Teach Monitoring
 
         // 1) Load methods for each new table
 
@@ -749,12 +750,124 @@ WHERE teach_id = @teachId";
                 return false;
             }
         }
+        public async Task<bool> DeleteTeacherAsync(Guid teacherId)
+        {
+            LastError = null;
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                await using var tx = await db.BeginTransactionAsync();
 
+                // Список дочерних таблиц для ПРЕПОДАВАТЕЛЕЙ
+                var childTables = new[]
+                {
+                    "academic_year_results", "gia_results", "demo_exam_results",
+                    "independent_assessments", "self_determinations", "student_olympiads",
+                    "jury_activities", "master_classes", "speeches", "publications",
+                    "experimental_projects", "mentorships", "program_supports",
+                    "professional_competitions"
+                };
+
+                // Удаляем связанные записи
+                foreach (var table in childTables)
+                {
+                    await db.ExecuteAsync($"DELETE FROM {table} WHERE teacher_id = @teacherId", new { teacherId }, tx);
+                }
+
+                // Удаляем самого преподавателя
+                await db.ExecuteAsync("DELETE FROM teachers WHERE id = @teacherId", new { teacherId }, tx);
+
+                await tx.CommitAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LastError = FormatError(ex);
+                Logger.Write(ex, "DB-DELETE-TEACHER");
+                return false;
+            }
+        }
+        public async Task<Teach> AddTeachAsync(string fullName)
+        {
+            LastError = null;
+            const string sql = "INSERT INTO teach (full_name) VALUES (@fullName) RETURNING id, full_name";
+            try
+            {
+                await using var db = Conn(_cs);
+                return await db.QuerySingleAsync<Teach>(sql, new { fullName });
+            }
+            catch (Exception ex)
+            {
+                LastError = FormatError(ex);
+                Logger.Write(ex, "DB-ADD-TEACH");
+                return null;
+            }
+        }
+        public async Task<bool> UpdateTeachNameAsync(Guid teachId, string newName)
+        {
+            LastError = null;
+            const string sql = "UPDATE teach SET full_name = @newName WHERE id = @teachId";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.ExecuteAsync(sql, new { teachId, newName });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LastError = FormatError(ex);
+                Logger.Write(ex, "DB-UPDATE-TEACH-NAME");
+                return false;
+            }
+        }
+        public async Task<bool> DeleteTeachAsync(Guid teachId)
+        {
+            LastError = null;
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                await using var tx = await db.BeginTransactionAsync();
+
+                // Список дочерних таблиц для УЧИТЕЛЕЙ (мониторинг)
+                var childTables = new[]
+                {
+                    "academic_year_results_teacher", "academic_results_teacher",
+                    "gia_results_teacher", "oge_results_teacher", "independent_assessments_teacher",
+                    "self_determinations_teacher", "student_olympiads_teacher",
+                    "jury_activities_teacher", "master_classes_teacher", "speeches_teacher",
+                    "publications_teacher", "experimental_projects_teacher",
+                    "mentorships_teacher", "program_supports_teacher",
+                    "professional_competitions_teacher", "subject_quarter_metrics"
+                };
+
+                // Удаляем связанные записи
+                foreach (var table in childTables)
+                {
+                    // В этих таблицах ключ называется teach_id
+                    await db.ExecuteAsync($"DELETE FROM {table} WHERE teach_id = @teachId", new { teachId }, tx);
+                }
+
+                // Удаляем самого учителя
+                await db.ExecuteAsync("DELETE FROM teach WHERE id = @teachId", new { teachId }, tx);
+
+                await tx.CommitAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LastError = FormatError(ex);
+                Logger.Write(ex, "DB-DELETE-TEACH");
+                return false;
+            }
+        }
         internal async Task<bool> SaveTeacherMonitoringAsync(int id, ObservableCollection<AcademicYearResultTeacher> academicYearResults, IEnumerable<AcademicResultTeacher> enumerable1, IEnumerable<GiaResultTeacher> enumerable2, IEnumerable<OgeResultTeacher> enumerable3, IEnumerable<IndependentAssessmentTeacher> enumerable4, IEnumerable<SelfDeterminationTeacher> enumerable5, IEnumerable<StudentOlympiadTeacher> enumerable6, IEnumerable<JuryActivityTeacher> enumerable7, IEnumerable<MasterClassTeacher> enumerable8, IEnumerable<SpeechTeacher> enumerable9, IEnumerable<PublicationTeacher> enumerable10, IEnumerable<ExperimentalProjectTeacher> enumerable11, IEnumerable<MentorshipTeacher> enumerable12, IEnumerable<ProgramSupportTeacher> enumerable13, IEnumerable<ProfessionalCompetitionTeacher> enumerable14)
         {
             throw new NotImplementedException();
         }
 
         #endregion
+
     }
 }

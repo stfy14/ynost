@@ -73,12 +73,17 @@ namespace Ynost.ViewModels
         public bool ShowDataContent => IsLoggedIn && !IsLoadingOrSaving;
 
         public ObservableCollection<TeacherViewModel> Teachers { get; } = new();
+
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(DeleteStaffCommand))]
         private TeacherViewModel? selectedTeacher;
 
         public IAsyncRelayCommand RetryConnectionCommand { get; }
         public IAsyncRelayCommand SaveChangesCommand { get; }
         public IRelayCommand ToggleLoginCommand { get; }
+        public IRelayCommand AddStaffCommand { get; }
+        public IAsyncRelayCommand DeleteStaffCommand { get; }
+
 
         public MainViewModel()
         {
@@ -87,6 +92,8 @@ namespace Ynost.ViewModels
             RetryConnectionCommand = new AsyncRelayCommand(LoadDataAsync, CanRetryConnection);
             SaveChangesCommand = new AsyncRelayCommand(ExecuteSaveChanges, CanExecuteSaveChanges);
             ToggleLoginCommand = new RelayCommand(ExecuteToggleLogin);
+            AddStaffCommand = new RelayCommand(ExecuteAddStaff, () => CanEditData);
+            DeleteStaffCommand = new AsyncRelayCommand(ExecuteDeleteStaff, CanExecuteDeleteStaff);
 
             // Начальная установка статусов
             if (Settings.Default.RememberLastUser && !string.IsNullOrEmpty(Settings.Default.LastUsername))
@@ -120,6 +127,15 @@ namespace Ynost.ViewModels
                 StatusText = "Войдите в систему для начала работы.";
                 ConnectionStatusText = StatusText;
             }
+
+            PropertyChanged += (s, e) => {
+                if (e.PropertyName == nameof(CanEditData))
+                {
+                    AddStaffCommand.NotifyCanExecuteChanged();
+                    DeleteStaffCommand.NotifyCanExecuteChanged();
+                }
+            };
+
             UpdateCanEditDataProperty();
         }
 
@@ -321,6 +337,51 @@ namespace Ynost.ViewModels
             {
                 SelectedTeacher = Teachers[0];
             }
+        }
+
+        private void ExecuteAddStaff()
+        {
+            var newTeacher = new Teacher { FullName = "Новый преподаватель" };
+            var newTeacherVm = new TeacherViewModel(newTeacher);
+            Teachers.Add(newTeacherVm);
+            SelectedTeacher = newTeacherVm;
+            // Важно: новый преподаватель будет сохранен в БД только после нажатия "Сохранить"
+        }
+
+        private async Task ExecuteDeleteStaff()
+        {
+            if (SelectedTeacher == null) return;
+
+            var result = MessageBox.Show($"Вы уверены, что хотите удалить преподавателя '{SelectedTeacher.FullName}' и все связанные с ним данные?",
+                                         "Подтверждение удаления",
+                                         MessageBoxButton.YesNo,
+                                         MessageBoxImage.Warning);
+
+            if (result != MessageBoxResult.Yes) return;
+
+            // Если преподаватель еще не сохранен в БД (Id пустой), просто удаляем из списка
+            if (SelectedTeacher.Id == Guid.Empty)
+            {
+                Teachers.Remove(SelectedTeacher);
+                return;
+            }
+
+            bool success = await _db.DeleteTeacherAsync(SelectedTeacher.Id);
+            if (success)
+            {
+                Teachers.Remove(SelectedTeacher);
+                MessageBox.Show("Преподаватель успешно удален.", "Удаление", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show(_db.LastError ?? "Не удалось удалить преподавателя из базы данных.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // НОВЫЙ МЕТОД: Определяет, активна ли кнопка "Удалить"
+        private bool CanExecuteDeleteStaff()
+        {
+            return SelectedTeacher != null && CanEditData;
         }
 
         // Убрали Dispose, так как NetworkAvailabilityService удален

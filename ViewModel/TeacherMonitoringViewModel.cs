@@ -31,6 +31,7 @@ namespace Ynost.ViewModels
 
         /*────────────────── 1. Учителя ───────────────────*/
         public ObservableCollection<Teach> TeachList { get; } = new();
+        [NotifyCanExecuteChangedFor(nameof(DeleteTeachCommand))]
         [ObservableProperty] private Teach? _selectedTeach;
 
         /*────────────────── 2. Коллекции мониторинга ─────*/
@@ -72,6 +73,8 @@ namespace Ynost.ViewModels
         public IAsyncRelayCommand SaveCommand { get; }
         public IRelayCommand SelectTeacherCommand { get; }
         public IRelayCommand ReloadMonitoringCommand { get; }
+        public IAsyncRelayCommand AddTeachCommand { get; }
+        public IAsyncRelayCommand DeleteTeachCommand { get; }
 
         /* «+ / –» секций (заполняются в RegisterSection) */
         public IRelayCommand AddAcademicYearResultCommand { get; private set; } = null!;
@@ -137,11 +140,11 @@ namespace Ynost.ViewModels
             {
                 CommitAllEdits();          // ① закрываем редактирование
                 await SaveAsync();         // ② ваше штатное сохранение
-            },
-() => SelectedTeach != null);
+            }, () => SelectedTeach != null);
             SelectTeacherCommand = new RelayCommand<Teach?>(t => SelectedTeach = t);
-            ReloadMonitoringCommand = new RelayCommand(async () => await ReloadAsync(),
-                                                       () => SelectedTeach != null);
+            ReloadMonitoringCommand = new RelayCommand(async () => await ReloadAsync(), () => SelectedTeach != null);
+            AddTeachCommand = new AsyncRelayCommand(ExecuteAddTeach);
+            DeleteTeachCommand = new AsyncRelayCommand(ExecuteDeleteTeach, () => SelectedTeach != null);
 
             /* 1.1 команды */
             AddBoardCommand = new RelayCommand(() => Boards.Add(new SubjectBoard()));
@@ -428,6 +431,66 @@ namespace Ynost.ViewModels
             catch { /* ignore */ }
             MessageBox.Show(dump.Substring(0, Math.Min(500, dump.Length)), "UI-crash");
             e.Handled = true;
+        }
+        /*────────────────── 11. Добавление/Удаление учителей ───────────*/
+        private async Task ExecuteAddTeach()
+        {
+            var newTeach = await _db.AddTeachAsync("Новый учитель");
+            if (newTeach != null)
+            {
+                TeachList.Add(newTeach);
+                SelectedTeach = newTeach;
+                Log("✔ Новый учитель добавлен. Вы можете изменить его имя.");
+            }
+            else
+            {
+                Log($"❌ Ошибка при добавлении учителя: {_db.LastError}");
+                MessageBox.Show(_db.LastError, "Ошибка добавления", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task ExecuteDeleteTeach()
+        {
+            if (SelectedTeach == null) return;
+
+            var result = MessageBox.Show($"Вы уверены, что хотите удалить учителя '{SelectedTeach.FullName}' и все данные его мониторинга?",
+                                         "Подтверждение удаления", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+            if (result != MessageBoxResult.Yes) return;
+
+            bool success = await _db.DeleteTeachAsync(SelectedTeach.Id);
+            if (success)
+            {
+                TeachList.Remove(SelectedTeach);
+                Log("✔ Учитель и его данные удалены.");
+            }
+            else
+            {
+                Log($"❌ Ошибка при удалении учителя: {_db.LastError}");
+                MessageBox.Show(_db.LastError, "Ошибка удаления", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        public async Task UpdateTeachNameAsync(Guid teachId, string newName)
+        {
+            Log($"Сохранение нового имени для ID: {teachId}...");
+            bool success = await _db.UpdateTeachNameAsync(teachId, newName);
+            if (success)
+            {
+                Log("✔ Имя учителя успешно обновлено.");
+                // Обновляем имя в текущем списке
+                var teacherInList = TeachList.FirstOrDefault(t => t.Id == teachId);
+                if (teacherInList != null)
+                {
+                    teacherInList.FullName = newName;
+                }
+            }
+            else
+            {
+                Log($"❌ Ошибка при обновлении имени: {_db.LastError}");
+                MessageBox.Show(_db.LastError, "Ошибка обновления", MessageBoxButton.OK, MessageBoxImage.Error);
+                await LoadAllAsync(); // Перезагружаем список, чтобы отменить неверное изменение в UI
+            }
         }
     }
 }
