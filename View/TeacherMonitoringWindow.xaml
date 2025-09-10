@@ -140,7 +140,7 @@
                                                 <DataGridTextColumn Header="II₂"   Binding="{Binding II2}"   Width="70"/>
                                                 <DataGridTextColumn Header="III₂"  Binding="{Binding III2}"  Width="70"/>
                                                 <DataGridTextColumn Header="IV₂"   Binding="{Binding IV2}"   Width="70"/>
-                                                <DataGridTextColumn Header="Динамика"   Binding="{Binding Y}"     Width="70"/>
+                                                <DataGridTextColumn Header="Динамика" Binding="{Binding Y}" IsReadOnly="True" Width="70"/>
                                             </DataGrid.Columns>
 
                                         </DataGrid>
