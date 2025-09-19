@@ -9,6 +9,7 @@ public class Teacher
 
     /* ------------ 14 списков — делаем set; чтобы ViewModel могла перезаписать -------- */
     public List<AcademicYearResult> AcademicResults { get; set; } = new();
+    public List<IntermediateAssessment> IntermediateAssessments { get; set; } = new();
     public List<GiaResult> GiaResults { get; set; } = new();
     public List<DemoExamResult> DemoExamResults { get; set; } = new();
     public List<IndependentAssessment> IndependentAssessments { get; set; } = new();

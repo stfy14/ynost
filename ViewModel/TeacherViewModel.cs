@@ -18,6 +18,7 @@ namespace Ynost.ViewModels
 
             // Инициализируем коллекции дочерних сущностей из _model:
             AcademicResults = new ObservableCollection<AcademicYearResult>(_model.AcademicResults);
+            IntermediateAssessments = new ObservableCollection<IntermediateAssessment>(_model.IntermediateAssessments); // ← ДОБАВЛЕНО
             GiaResults = new ObservableCollection<GiaResult>(_model.GiaResults);
             DemoExamResults = new ObservableCollection<DemoExamResult>(_model.DemoExamResults);
             IndependentAssessments = new ObservableCollection<IndependentAssessment>(_model.IndependentAssessments);
@@ -79,13 +80,12 @@ namespace Ynost.ViewModels
                 Subject = "Новый предмет",
                 AvgSem1 = string.Empty,
                 AvgSem2 = string.Empty,
-                DynamicsSem = string.Empty,
                 AvgSuccessRate = string.Empty,
-                DynamicsAvgSuccessRate = string.Empty,
                 AvgQualityRate = string.Empty,
-                DynamicsAvgQualityRate = string.Empty,
+                AvgSuccessRateSem2 = string.Empty,
+                AvgQualityRateSem2 = string.Empty,
                 EntrySouRate = string.Empty,
-                ExitSouRate= string.Empty,
+                ExitSouRate = string.Empty,
                 Link = string.Empty
             });
         }
@@ -99,6 +99,46 @@ namespace Ynost.ViewModels
 
         private bool CanDeleteAcademicResult()
             => SelectedAcademicResult != null;
+
+        #endregion
+
+        // ─────────────────────────────────────────────────────────────────────────
+        #region 1A. Промежуточная аттестация (IntermediateAssessment) - ДОБАВЛЕНО
+
+        public ObservableCollection<IntermediateAssessment> IntermediateAssessments { get; }
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(DeleteIntermediateAssessmentCommand))]
+        private IntermediateAssessment? _selectedIntermediateAssessment;
+
+        [RelayCommand]
+        private void AddIntermediateAssessment()
+        {
+            string y1 = DateTime.Now.Year.ToString();
+            string y2 = (DateTime.Now.Year + 1).ToString();
+
+            IntermediateAssessments.Add(new IntermediateAssessment
+            {
+                Id = Guid.NewGuid(),
+                TeacherId = _model.Id,
+                AcademicYear = $"{y1}-{y2}",
+                Subject = "Новый предмет",
+                AvgScore = string.Empty,
+                Quality = string.Empty,
+                Sou = string.Empty,
+                Link = string.Empty
+            });
+        }
+
+        [RelayCommand(CanExecute = nameof(CanDeleteIntermediateAssessment))]
+        private void DeleteIntermediateAssessment()
+        {
+            if (SelectedIntermediateAssessment != null)
+                IntermediateAssessments.Remove(SelectedIntermediateAssessment);
+        }
+
+        private bool CanDeleteIntermediateAssessment()
+            => SelectedIntermediateAssessment != null;
 
         #endregion
 
@@ -580,6 +620,7 @@ namespace Ynost.ViewModels
         {
             // 1) Полностью очищаем текущие коллекции в доменной модели:
             _model.AcademicResults.Clear();
+            _model.IntermediateAssessments.Clear(); // ← ДОБАВЛЕНО
             _model.GiaResults.Clear();
             _model.DemoExamResults.Clear();
             _model.IndependentAssessments.Clear();
@@ -596,6 +637,7 @@ namespace Ynost.ViewModels
 
             // 2) Переносим записи из ObservableCollection обратно в доменную модель:
             foreach (var a in AcademicResults) _model.AcademicResults.Add(a);
+            foreach (var i in IntermediateAssessments) _model.IntermediateAssessments.Add(i); // ← ДОБАВЛЕНО
             foreach (var g in GiaResults) _model.GiaResults.Add(g);
             foreach (var d in DemoExamResults) _model.DemoExamResults.Add(d);
             foreach (var i in IndependentAssessments) _model.IndependentAssessments.Add(i);

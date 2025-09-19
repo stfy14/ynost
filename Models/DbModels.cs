@@ -8,6 +8,11 @@ namespace Ynost.Models
         string AvgSem1, string ResultATest, string AvgSem2, string DynamicsSem, string AvgSuccessRate, string DynamicsAvgSuccessRate,
         string AvgQualityRate, string DynamicsAvgQualityRate, string EntrySouRate, string ExitSouRate, string Link);
 
+    // Новая запись для промежуточной аттестации
+    public record IntermediateAttestationResultDb(
+        Guid Id, Guid TeacherId, string AcademicYear, string Subject,
+        string AvgScore, string Quality, string Sou);
+
     // 2. ГИА
     public record GiaResultDb(
         Guid Id, Guid TeacherId, string Subject, string Group, string TotalParticipants,

@@ -41,7 +41,7 @@ namespace Ynost.Services
 
         private static NpgsqlConnection Conn(string cs) => new(cs);
 
-       
+
 
         #endregion
 
@@ -68,6 +68,7 @@ namespace Ynost.Services
                 }
 
                 await LoadChildAsync<AcademicYearResult>("academic_year_results", (t, r) => t.AcademicResults = r.ToList());
+                await LoadChildAsync<IntermediateAssessment>("intermediate_assessments", (t, r) => t.IntermediateAssessments = r.ToList()); // ← ДОБАВЛЕНО
                 await LoadChildAsync<GiaResult>("gia_results", (t, r) => t.GiaResults = r.ToList());
                 await LoadChildAsync<DemoExamResult>("demo_exam_results", (t, r) => t.DemoExamResults = r.ToList());
                 await LoadChildAsync<IndependentAssessment>("independent_assessments", (t, r) => t.IndependentAssessments = r.ToList());
@@ -197,6 +198,7 @@ SET full_name   = EXCLUDED.full_name,
                     await db.ExecuteAsync(upsertSql, t, tx);
 
                     await ReplaceAsync(db, tx, "academic_year_results", t.Id, t.AcademicResults);
+                    await ReplaceAsync(db, tx, "intermediate_assessments", t.Id, t.IntermediateAssessments); // ← ДОБАВЛЕНО
                     await ReplaceAsync(db, tx, "gia_results", t.Id, t.GiaResults);
                     await ReplaceAsync(db, tx, "demo_exam_results", t.Id, t.DemoExamResults);
                     await ReplaceAsync(db, tx, "independent_assessments", t.Id, t.IndependentAssessments);
@@ -251,63 +253,63 @@ SET full_name   = EXCLUDED.full_name,
             await db.ExecuteAsync(insertSql, list, tx);
         }
 
-       public async Task<List<AcademicResultMetric>> LoadAcademicResultMetricsAsync(
-        Guid teachId, string academicYear)
-{
-    const string sql = @"
+        public async Task<List<AcademicResultMetric>> LoadAcademicResultMetricsAsync(
+         Guid teachId, string academicYear)
+        {
+            const string sql = @"
         SELECT *
         FROM   academic_result_metrics
         WHERE  teach_id      = @teachId
           AND  academic_year = @academicYear
         ORDER  BY subject, quarter";
 
-    try
-    {
-        await using var db = Conn(_cs);
-        await db.OpenAsync();
-        return (await db.QueryAsync<AcademicResultMetric>(
-                    sql, new { teachId, academicYear }))
-               .ToList();
-    }
-    catch (Exception ex)
-    {
-        Logger.Write(ex, "LOAD-ARM");
-        return new List<AcademicResultMetric>();
-    }
-}
-
-/// <summary>Полностью заменяет показатели успеваемости (1.x) для учителя и года.</summary>
-/// <returns>true – всё ок; false – исключение, текст в LastError</returns>
-public async Task<bool> SaveAcademicResultMetricsAsync(
-        Guid teachId, string academicYear,
-        IEnumerable<AcademicResultMetric> rows)
-{
-    LastError = null;
-    var list = rows.ToList();
-
-    try
-    {
-        await using var db = Conn(_cs);
-        await db.OpenAsync();
-        await using var tx = await db.BeginTransactionAsync();
-
-        // 1. удаляем старые записи
-        await db.ExecuteAsync(
-            @"DELETE FROM academic_result_metrics
-              WHERE teach_id = @teachId AND academic_year = @academicYear",
-            new { teachId, academicYear }, tx);
-
-        // 2. вставляем новые (если есть)
-        if (list.Any())
-        {
-            // гарантируем TeachId и AcademicYear внутри объектов
-            foreach (var r in list)
+            try
             {
-                r.TeachId      = teachId;
-                r.AcademicYear = academicYear;
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<AcademicResultMetric>(
+                            sql, new { teachId, academicYear }))
+                       .ToList();
             }
+            catch (Exception ex)
+            {
+                Logger.Write(ex, "LOAD-ARM");
+                return new List<AcademicResultMetric>();
+            }
+        }
 
-            var insertSql = @"
+        /// <summary>Полностью заменяет показатели успеваемости (1.x) для учителя и года.</summary>
+        /// <returns>true – всё ок; false – исключение, текст в LastError</returns>
+        public async Task<bool> SaveAcademicResultMetricsAsync(
+                Guid teachId, string academicYear,
+                IEnumerable<AcademicResultMetric> rows)
+        {
+            LastError = null;
+            var list = rows.ToList();
+
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                await using var tx = await db.BeginTransactionAsync();
+
+                // 1. удаляем старые записи
+                await db.ExecuteAsync(
+                    @"DELETE FROM academic_result_metrics
+              WHERE teach_id = @teachId AND academic_year = @academicYear",
+                    new { teachId, academicYear }, tx);
+
+                // 2. вставляем новые (если есть)
+                if (list.Any())
+                {
+                    // гарантируем TeachId и AcademicYear внутри объектов
+                    foreach (var r in list)
+                    {
+                        r.TeachId = teachId;
+                        r.AcademicYear = academicYear;
+                    }
+
+                    var insertSql = @"
 INSERT INTO academic_result_metrics (
     id, teach_id, academic_year, subject, quarter, kach, usp, sou)
 VALUES (
@@ -316,19 +318,19 @@ VALUES (
     @Subject, @Quarter,         -- ключ
     @Kach, @Usp, @Sou);";       // показатели
 
-            await db.ExecuteAsync(insertSql, list, tx);
-        }
+                    await db.ExecuteAsync(insertSql, list, tx);
+                }
 
-        await tx.CommitAsync();
-        return true;
-    }
-    catch (Exception ex)
-    {
-        LastError = FormatError(ex);
-        Logger.Write(ex, "SAVE-ARM");
-        return false;
-    }
-}
+                await tx.CommitAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LastError = FormatError(ex);
+                Logger.Write(ex, "SAVE-ARM");
+                return false;
+            }
+        }
 
         #region Cache (JSON)
 
@@ -762,7 +764,7 @@ WHERE teach_id = @teachId";
                 // Список дочерних таблиц для ПРЕПОДАВАТЕЛЕЙ
                 var childTables = new[]
                 {
-                    "academic_year_results", "gia_results", "demo_exam_results",
+                    "academic_year_results", "intermediate_assessments", "gia_results", "demo_exam_results", // ← ДОБАВЛЕНО
                     "independent_assessments", "self_determinations", "student_olympiads",
                     "jury_activities", "master_classes", "speeches", "publications",
                     "experimental_projects", "mentorships", "program_supports",
