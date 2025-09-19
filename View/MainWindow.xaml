@@ -127,29 +127,13 @@
                                 <DataGridTextColumn Header="Динамика кач." Binding="{Binding DynamicsAvgQualityRate}" IsReadOnly="True" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                                 <DataGridTextColumn Header="СОУ Входной" Binding="{Binding EntrySouRate}" Width="Auto" MinWidth="70" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                                 <DataGridTextColumn Header="СОУ Итоговый" Binding="{Binding ExitSouRate}" Width="Auto" MinWidth="70" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Динамика СОУ" Binding="{Binding DynamicsSouRate}" IsReadOnly="True" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                                 <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
                             <Button Content="+" Command="{Binding SelectedTeacher.AddAcademicResultCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
                             <Button Content="-" Command="{Binding SelectedTeacher.DeleteAcademicResultCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                        </StackPanel>
-
-                        <!-- 1A. Результаты промежуточной аттестации (НОВАЯ ТАБЛИЦА) -->
-                        <TextBlock Text="1А. Результаты промежуточной аттестации" FontWeight="Bold" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.IntermediateAssessments}" SelectedItem="{Binding SelectedTeacher.SelectedIntermediateAssessment, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Учебный год" Binding="{Binding AcademicYear}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Предмет" Binding="{Binding Subject}" Width="Auto" MinWidth="180" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="СР БАЛ" Binding="{Binding AvgScore}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="КАЧЕСТВО" Binding="{Binding Quality}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="СОУ" Binding="{Binding Sou}" Width="Auto" MinWidth="90" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddIntermediateAssessmentCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteIntermediateAssessmentCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
                         </StackPanel>
 
                         <!-- 2. Результаты государственной итоговой аттестации (ГИА) -->

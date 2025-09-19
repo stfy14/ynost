@@ -157,11 +157,51 @@ namespace Ynost.Models
             private set { /* Setter for Dapper/JSON */ }
         }
 
-        [ObservableProperty]
         private string _entrySouRate = string.Empty;
+        public string EntrySouRate
+        {
+            get => _entrySouRate;
+            set
+            {
+                if (SetProperty(ref _entrySouRate, value))
+                {
+                    OnPropertyChanged(nameof(DynamicsSouRate)); // Уведомляем об изменении динамики
+                }
+            }
+        }
 
-        [ObservableProperty]
         private string _exitSouRate = string.Empty;
+        public string ExitSouRate
+        {
+            get => _exitSouRate;
+            set
+            {
+                if (SetProperty(ref _exitSouRate, value))
+                {
+                    OnPropertyChanged(nameof(DynamicsSouRate)); // Уведомляем об изменении динамики
+                }
+            }
+        }
+
+        /// <summary>
+        /// Динамика СОУ (Итоговый - Входной).
+        /// </summary>
+        public string DynamicsSouRate
+        {
+            get
+            {
+                var v1 = TryParseValue(EntrySouRate);
+                var v2 = TryParseValue(ExitSouRate);
+
+                if (v1.HasValue && v2.HasValue)
+                {
+                    decimal difference = v2.Value - v1.Value;
+                    return difference.ToString("+0.##;-0.##;0", CultureInfo.CurrentCulture);
+                }
+                return string.Empty;
+            }
+            private set { /* Setter for Dapper/JSON */ }
+        }
 
         [ObservableProperty]
         private string _link = string.Empty;

@@ -8,7 +8,7 @@ public static class Helpers
     public static AcademicYearResultDb ToDb(this AcademicYearResult src, Guid teacherId) =>
         new(src.Id, teacherId, src.Group, src.AcademicPeriod, src.Subject,
             src.AvgSem1, src.ResultATest, src.AvgSem2, src.DynamicsSem, src.AvgSuccessRate,
-            src.DynamicsAvgSuccessRate, src.AvgQualityRate, src.DynamicsAvgQualityRate, src.EntrySouRate, src.ExitSouRate, src.Link);
+            src.DynamicsAvgSuccessRate, src.AvgQualityRate, src.DynamicsAvgQualityRate, src.EntrySouRate, src.ExitSouRate, src.DynamicsSouRate, src.Link);
 
     // 2
     public static GiaResultDb ToDb(this GiaResult src, Guid teacherId) =>
@@ -22,9 +22,9 @@ public static class Helpers
 
     // 4
     public static IndependentAssessmentDb ToDb(this IndependentAssessment src, Guid teacherId) =>
-        new(src.Id, teacherId, src.AssessmentName, src.AssessmentDate, 
-            src.ClassSubject, src.StudentsTotal, src.StudentsParticipated, 
-            src.StudentsPassed, src.Count5, src.Count4, src.Count3, src.Count2, 
+        new(src.Id, teacherId, src.AssessmentName, src.AssessmentDate,
+            src.ClassSubject, src.StudentsTotal, src.StudentsParticipated,
+            src.StudentsPassed, src.Count5, src.Count4, src.Count3, src.Count2,
             src.Link);
 
     // 5
