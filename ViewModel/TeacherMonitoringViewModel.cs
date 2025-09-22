@@ -1,7 +1,7 @@
 ﻿// File: ViewModels/TeacherMonitoringViewModel.cs
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -10,8 +10,6 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
 using System.Windows.Threading;
 using Ynost.Extensions;
 using Ynost.Models;
@@ -19,22 +17,26 @@ using Ynost.Services;
 
 namespace Ynost.ViewModels
 {
-    /// <summary>VM для окна мониторинга учителей.</summary>
     public partial class TeacherMonitoringViewModel : ObservableObject
     {
         private readonly DatabaseService _db;
 
-        /*────────────────── 0. Мини-лог ──────────────────*/
+        #region 0. Лог и базовые свойства
         public ObservableCollection<string> LogEntries { get; } = new();
         private void Log(string msg) =>
-            LogEntries.Insert(0, $"{DateTime.Now:HH:mm:ss}  {msg}");
+            Application.Current.Dispatcher.Invoke(() => LogEntries.Insert(0, $"{DateTime.Now:HH:mm:ss}  {msg}"));
 
-        /*────────────────── 1. Учителя ───────────────────*/
         public ObservableCollection<Teach> TeachList { get; } = new();
-        [NotifyCanExecuteChangedFor(nameof(DeleteTeachCommand))]
-        [ObservableProperty] private Teach? _selectedTeach;
 
-        /*────────────────── 2. Коллекции мониторинга ─────*/
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(DeleteTeachCommand))]
+        [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ReloadMonitoringCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ExportToExcelCommand))]
+        private Teach? _selectedTeach;
+        #endregion
+
+        #region 2. Коллекции мониторинга и выбранные элементы
         public ObservableCollection<AcademicYearResultTeacher> AcademicYearResults { get; } = new();
         public ObservableCollection<AcademicResultTeacher> AcademicResults { get; } = new();
         public ObservableCollection<GiaResultTeacher> GiaResults { get; } = new();
@@ -51,7 +53,6 @@ namespace Ynost.ViewModels
         public ObservableCollection<ProgramSupportTeacher> ProgramSupports { get; } = new();
         public ObservableCollection<ProfessionalCompetitionTeacher> ProfessionalCompetitions { get; } = new();
 
-        /* выбранные строки («–») */
         [ObservableProperty] private AcademicYearResultTeacher? _selectedAcademicYear;
         [ObservableProperty] private AcademicResultTeacher? _selectedAcademicResult;
         [ObservableProperty] private GiaResultTeacher? _selectedGiaResult;
@@ -67,16 +68,19 @@ namespace Ynost.ViewModels
         [ObservableProperty] private MentorshipTeacher? _selectedMentorship;
         [ObservableProperty] private ProgramSupportTeacher? _selectedProgramSupport;
         [ObservableProperty] private ProfessionalCompetitionTeacher? _selectedProfessionalCompetition;
+        #endregion
 
-        /*────────────────── 3. Команды ───────────────────*/
+        #region 3. Команды (основные)
         public IAsyncRelayCommand LoadCommand { get; }
         public IAsyncRelayCommand SaveCommand { get; }
         public IRelayCommand SelectTeacherCommand { get; }
         public IRelayCommand ReloadMonitoringCommand { get; }
         public IAsyncRelayCommand AddTeachCommand { get; }
         public IAsyncRelayCommand DeleteTeachCommand { get; }
+        public IAsyncRelayCommand ExportToExcelCommand { get; }
+        #endregion
 
-        /* «+ / –» секций (заполняются в RegisterSection) */
+        #region 3.1 Команды (+/- для таблиц)
         public IRelayCommand AddAcademicYearResultCommand { get; private set; } = null!;
         public IRelayCommand DeleteAcademicYearResultCommand { get; private set; } = null!;
         public IRelayCommand AddAcademicResultCommand { get; private set; } = null!;
@@ -107,56 +111,38 @@ namespace Ynost.ViewModels
         public IRelayCommand DeleteProgramSupportCommand { get; private set; } = null!;
         public IRelayCommand AddProfessionalCompetitionCommand { get; private set; } = null!;
         public IRelayCommand DeleteProfessionalCompetitionCommand { get; private set; } = null!;
+        #endregion
 
-        /*──────────── 1.1 Итоги по предметам ─────────────*/
-
-        public enum Quarter { I2 = 1, II2 = 2, III2 = 3, IV2 = 4, Y = 5 }
-
+        #region 1.1 Итоги по предметам (Boards)
         public ObservableCollection<SubjectBoard> Boards { get; } = new();
-
-        private SubjectBoard? _selectedBoard;
-        public SubjectBoard? SelectedBoard
-        {
-            get => _selectedBoard;
-            set => SetProperty(ref _selectedBoard, value);
-        }
-
+        [ObservableProperty] private SubjectBoard? _selectedBoard;
         public IRelayCommand AddBoardCommand { get; }
         public IRelayCommand DeleteBoardCommand { get; }
+        private string CurrentYear => SelectedAcademicYear?.AcademicYear ?? DateTime.Now.ToString("yyyy–yyyy");
+        #endregion
 
-        private string CurrentYear =>
-            SelectedAcademicYear?.AcademicYear ?? DateTime.Now.ToString("yyyy–yyyy");
-
-        /*──────────── 4. Конструктор ─────────────────────*/
+        #region 4. Конструктор
         public TeacherMonitoringViewModel() : this(App.Db) { }
 
         public TeacherMonitoringViewModel(DatabaseService db)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
 
-            /* базовые команды */
             LoadCommand = new AsyncRelayCommand(LoadAllAsync);
-            SaveCommand = new AsyncRelayCommand(async () =>
-            {
-                CommitAllEdits();          // ① закрываем редактирование
-                await SaveAsync();         // ② ваше штатное сохранение
-            }, () => SelectedTeach != null);
+            SaveCommand = new AsyncRelayCommand(SaveAsync, () => SelectedTeach != null);
             SelectTeacherCommand = new RelayCommand<Teach?>(t => SelectedTeach = t);
             ReloadMonitoringCommand = new RelayCommand(async () => await ReloadAsync(), () => SelectedTeach != null);
             AddTeachCommand = new AsyncRelayCommand(ExecuteAddTeach);
             DeleteTeachCommand = new AsyncRelayCommand(ExecuteDeleteTeach, () => SelectedTeach != null);
+            ExportToExcelCommand = new AsyncRelayCommand(ExportMonitoringDataToExcel, () => SelectedTeach != null);
 
-            /* 1.1 команды */
             AddBoardCommand = new RelayCommand(() => Boards.Add(new SubjectBoard()));
-            DeleteBoardCommand = new RelayCommand(
-                () =>
-                {
-                    if (SelectedBoard == null) return;
-                    Boards.Remove(SelectedBoard);
-                    SelectedBoard = Boards.FirstOrDefault();
-                });
+            DeleteBoardCommand = new RelayCommand(() =>
+            {
+                if (SelectedBoard != null) Boards.Remove(SelectedBoard);
+                SelectedBoard = Boards.FirstOrDefault();
+            });
 
-            /* секции с авто-регистрацией +/– */
             RegisterSection(AcademicYearResults, () => new AcademicYearResultTeacher(), nameof(SelectedAcademicYear));
             RegisterSection(AcademicResults, () => new AcademicResultTeacher(), nameof(SelectedAcademicResult));
             RegisterSection(GiaResults, () => new GiaResultTeacher(), nameof(SelectedGiaResult));
@@ -173,43 +159,21 @@ namespace Ynost.ViewModels
             RegisterSection(ProgramSupports, () => new ProgramSupportTeacher(), nameof(SelectedProgramSupport));
             RegisterSection(ProfessionalCompetitions, () => new ProfessionalCompetitionTeacher(), nameof(SelectedProfessionalCompetition));
         }
-        private void CommitAllEdits()
-        {
-            void commit(DataGrid dg)
-            {
-                dg.CommitEdit(DataGridEditingUnit.Cell, true);
-                dg.CommitEdit(DataGridEditingUnit.Row, true);
-            }
+        #endregion
 
-            foreach (var dg in FindVisualChildren<DataGrid>(Application.Current.MainWindow))
-                commit(dg);
-        }
-
-        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject root) where T : DependencyObject
-        {
-            if (root == null) yield break;
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
-            {
-                var child = VisualTreeHelper.GetChild(root, i);
-                if (child is T t) yield return t;
-                foreach (var sub in FindVisualChildren<T>(child)) yield return sub;
-            }
-        }
-        /*────────────────── 5. Смена преподавателя / года ──*/
+        #region 5. Обработчики событий и частичные методы
         partial void OnSelectedTeachChanged(Teach? oldValue, Teach? newValue)
         {
-            SaveCommand.NotifyCanExecuteChanged();
-            ReloadMonitoringCommand.NotifyCanExecuteChanged();
             _ = ReloadAsync();
         }
 
-        partial void OnSelectedAcademicYearChanged(AcademicYearResultTeacher? newValue)
+        partial void OnSelectedAcademicYearChanged(AcademicYearResultTeacher? oldValue, AcademicYearResultTeacher? newValue)
         {
             _ = LoadBoardsAsync();
         }
+        #endregion
 
-
-        /*────────────────── 6. Загрузка списка учителей ───*/
+        #region 6. Методы загрузки и сохранения
         private async Task LoadAllAsync()
         {
             try
@@ -227,7 +191,6 @@ namespace Ynost.ViewModels
             catch (Exception ex) { Log($"❌ {ex.GetType().Name}: {ex.Message}"); }
         }
 
-        /*────────────────── 7. Подгрузка секций ───────────*/
         private async Task ReloadAsync()
         {
             ClearAllSections();
@@ -256,7 +219,7 @@ namespace Ynost.ViewModels
             ProgramSupports.AddRange(await _db.LoadProgramSupportsTeacherAsync(id));
             ProfessionalCompetitions.AddRange(await _db.LoadProfessionalCompetitionsTeacherAsync(id));
 
-            await LoadBoardsAsync();   // ← 1.1
+            await LoadBoardsAsync();
 
             Log("✔ Мониторинг загружен");
         }
@@ -267,11 +230,36 @@ namespace Ynost.ViewModels
             IndependentAssessments.Clear(); SelfDeterminations.Clear(); StudentOlympiads.Clear(); JuryActivities.Clear();
             MasterClasses.Clear(); Speeches.Clear(); Publications.Clear(); ExperimentalProjects.Clear();
             Mentorships.Clear(); ProgramSupports.Clear(); ProfessionalCompetitions.Clear();
-            Boards.Clear();     // 1.1
+            Boards.Clear();
         }
 
-        /*────────── 7.1  Загрузка / сохранение 1.1 ───────*/
+        private async Task SaveAsync()
+        {
+            if (SelectedTeach == null) return;
 
+            Log("💾 Сохраняю мониторинг…");
+
+            bool ok = await _db.SaveTeacherMonitoringAsync(
+                SelectedTeach.Id,
+                AcademicYearResults, AcademicResults, GiaResults, OgeResults,
+                IndependentAssessments, SelfDeterminations, StudentOlympiads,
+                JuryActivities, MasterClasses, Speeches, Publications,
+                ExperimentalProjects, Mentorships, ProgramSupports, ProfessionalCompetitions);
+
+            if (ok)
+            {
+                await SaveBoardsAsync();
+                Log("✔ Мониторинг сохранён");
+                await ReloadAsync();
+            }
+            else
+            {
+                Log($"❌ Ошибка при сохранении → {_db.LastError}");
+            }
+        }
+        #endregion
+
+        #region 7. Логика для таблицы 1.1 (Boards)
         private async Task LoadBoardsAsync()
         {
             Boards.Clear();
@@ -301,7 +289,6 @@ namespace Ynost.ViewModels
             }
         }
 
-
         private async Task SaveBoardsAsync()
         {
             if (SelectedTeach == null) return;
@@ -319,7 +306,7 @@ namespace Ynost.ViewModels
                     if (string.IsNullOrWhiteSpace(kach) &&
                         string.IsNullOrWhiteSpace(usp) &&
                         string.IsNullOrWhiteSpace(sou))
-                        continue;                        // пустая строка не нужна
+                        continue;
 
                     list.Add(new SubjectQuarterMetric
                     {
@@ -339,100 +326,54 @@ namespace Ynost.ViewModels
             if (ok) Log($"✔ 1.1 сохранён ({list.Count} строк)");
         }
 
-        /* ─ helper ─ */
         private static string GetCell(SubjectBoard sb, string rowType, string q)
         {
             var row = sb.Metrics.First(r => r.Type == rowType);
             return (row.GetType().GetProperty(q)!.GetValue(row) ?? "").ToString()!;
         }
+        #endregion
 
-
-
-        /*────────────────── 8. Универсальная регистрация секций (+/–) ──*/
-        private void SetGuidProp(object target, string propName, Guid value) =>
-            target.GetType().GetProperty(propName, BindingFlags.Public | BindingFlags.Instance)
-                          ?.SetValue(target, value);
-
-        private void RegisterSection<TRow>(ObservableCollection<TRow> collection,
-                                           Func<TRow> factory,
-                                           string selectedPropertyName)
-            where TRow : class, new()
-        {
-            string name = typeof(TRow).Name.Replace("Teacher", string.Empty);
-
-            /* + */
-            var addCmd = new RelayCommand(() =>
-            {
-                if (SelectedTeach == null) return;
-                var row = factory();
-                SetGuidProp(row, "Id", Guid.NewGuid());
-                SetGuidProp(row, "TeachId", SelectedTeach.Id);
-                SetGuidProp(row, "TeacherId", SelectedTeach.Id);
-                collection.Add(row);
-                Log($"➕ {name} добавлен");
-            });
-            GetType().GetProperty($"Add{name}Command")!.SetValue(this, addCmd);
-
-            /* – */
-            var selProp = GetType().GetProperty(selectedPropertyName)!;
-            var delCmd = new RelayCommand(
-                () =>
-                {
-                    var sel = (TRow?)selProp.GetValue(this);
-                    if (sel == null) return;
-                    collection.Remove(sel);
-                    selProp.SetValue(this, null);
-                    Log($"🗑 {name} удалён");
-                },
-                () => selProp.GetValue(this) != null);
-            GetType().GetProperty($"Delete{name}Command")!.SetValue(this, delCmd);
-
-            /* CanExecute */
-            PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == selectedPropertyName)
-                    delCmd.NotifyCanExecuteChanged();
-            };
-        }
-
-        /*────────────────── 9. Сохранение всего мониторинга ───────────*/
-        private async Task SaveAsync()
+        #region 8. Логика экспорта в Excel
+        private async Task ExportMonitoringDataToExcel()
         {
             if (SelectedTeach == null) return;
 
-            Log("💾 Сохраняю мониторинг…");
-
-            bool ok = await _db.SaveTeacherMonitoringAsync(
-                SelectedTeach.Id,
-                AcademicYearResults, AcademicResults, GiaResults, OgeResults,
-                IndependentAssessments, SelfDeterminations, StudentOlympiads,
-                JuryActivities, MasterClasses, Speeches, Publications,
-                ExperimentalProjects, Mentorships, ProgramSupports, ProfessionalCompetitions);
-
-            if (ok)
+            var dialog = new SaveFileDialog
             {
-                await SaveBoardsAsync();          // ← 1.1
-                Log("✔ Мониторинг сохранён");
-                await ReloadAsync();              // показать «чистые» данные
-            }
-            else
+                Filter = "Excel Macro-Enabled Workbook (*.xlsm)|*.xlsm",
+                FileName = $"{SelectedTeach.FullName}-Учитель.xlsm",
+                Title = "Сохранить данные мониторинга"
+            };
+
+            if (dialog.ShowDialog() == true)
             {
-                Log($"❌ Ошибка при сохранении → {_db.LastError}");
+                Log("Начинаю экспорт данных в Excel...");
+                try
+                {
+                    string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExcelTemplate/template.xlsm");
+                    if (!File.Exists(templatePath))
+                    {
+                        MessageBox.Show("Файл шаблона 'template.xlsm' не найден.", "Ошибка экспорта", MessageBoxButton.OK, MessageBoxImage.Error);
+                        Log("Ошибка: файл шаблона не найден.");
+                        return;
+                    }
+
+                    var exportService = new ExcelExportService();
+                    await Task.Run(() => exportService.ExportMonitoringData(this, templatePath, dialog.FileName));
+
+                    Log("✔ Экспорт успешно завершен.");
+                    MessageBox.Show($"Данные успешно экспортированы в файл:\n{dialog.FileName}", "Экспорт завершен", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    Log($"❌ Ошибка при экспорте: {ex.Message}");
+                    MessageBox.Show($"Произошла ошибка при экспорте: {ex.Message}", "Ошибка экспорта", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
+        #endregion
 
-        /*────────────────── 10. Глобальный ловец XAML-крэшей ───────────*/
-        private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
-        {
-            string dump = e.Exception.ToString();
-            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            string full = Path.Combine(desktop, $"Ynost_UI_crash_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
-            try { File.WriteAllText(full, dump); }
-            catch { /* ignore */ }
-            MessageBox.Show(dump.Substring(0, Math.Min(500, dump.Length)), "UI-crash");
-            e.Handled = true;
-        }
-        /*────────────────── 11. Добавление/Удаление учителей ───────────*/
+        #region 9. CRUD операции для Учителей
         private async Task ExecuteAddTeach()
         {
             var newTeach = await _db.AddTeachAsync("Новый учитель");
@@ -478,7 +419,6 @@ namespace Ynost.ViewModels
             if (success)
             {
                 Log("✔ Имя учителя успешно обновлено.");
-                // Обновляем имя в текущем списке
                 var teacherInList = TeachList.FirstOrDefault(t => t.Id == teachId);
                 if (teacherInList != null)
                 {
@@ -489,8 +429,63 @@ namespace Ynost.ViewModels
             {
                 Log($"❌ Ошибка при обновлении имени: {_db.LastError}");
                 MessageBox.Show(_db.LastError, "Ошибка обновления", MessageBoxButton.OK, MessageBoxImage.Error);
-                await LoadAllAsync(); // Перезагружаем список, чтобы отменить неверное изменение в UI
+                await LoadAllAsync();
             }
         }
+        #endregion
+
+        #region 10. Вспомогательные методы
+        private void SetGuidProp(object target, string propName, Guid value) =>
+            target.GetType().GetProperty(propName, BindingFlags.Public | BindingFlags.Instance)
+                          ?.SetValue(target, value);
+
+        private void RegisterSection<TRow>(ObservableCollection<TRow> collection, Func<TRow> factory, string selectedPropertyName)
+            where TRow : class, new()
+        {
+            string name = typeof(TRow).Name.Replace("Teacher", string.Empty);
+
+            var addCmd = new RelayCommand(() =>
+            {
+                if (SelectedTeach == null) return;
+                var row = factory();
+                SetGuidProp(row, "Id", Guid.NewGuid());
+                SetGuidProp(row, "TeachId", SelectedTeach.Id);
+                SetGuidProp(row, "TeacherId", SelectedTeach.Id);
+                collection.Add(row);
+                Log($"➕ {name} добавлен");
+            });
+            GetType().GetProperty($"Add{name}Command")!.SetValue(this, addCmd);
+
+            var selProp = GetType().GetProperty(selectedPropertyName)!;
+            var delCmd = new RelayCommand(() =>
+            {
+                var sel = (TRow?)selProp.GetValue(this);
+                if (sel != null)
+                {
+                    collection.Remove(sel);
+                    selProp.SetValue(this, null);
+                    Log($"🗑 {name} удалён");
+                }
+            }, () => selProp.GetValue(this) != null);
+            GetType().GetProperty($"Delete{name}Command")!.SetValue(this, delCmd);
+
+            PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == selectedPropertyName)
+                    delCmd.NotifyCanExecuteChanged();
+            };
+        }
+
+        private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        {
+            string dump = e.Exception.ToString();
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            string full = Path.Combine(desktop, $"Ynost_UI_crash_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+            try { File.WriteAllText(full, dump); }
+            catch { /* ignore */ }
+            MessageBox.Show(dump.Substring(0, Math.Min(500, dump.Length)), "UI-crash");
+            e.Handled = true;
+        }
+        #endregion
     }
-}
+}   
