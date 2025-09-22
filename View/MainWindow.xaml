@@ -42,47 +42,62 @@
             <Grid Grid.Column="0" Background="#f3f6ff">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <!-- (0) НОВАЯ ПАНЕЛЬ-ЗАГОЛОВОК -->
                     <RowDefinition Height="Auto"/>
+                    <!-- (1) Поиск -->
                     <RowDefinition Height="Auto"/>
+                    <!-- (2) Кнопка "Учителя" -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- (3) Разделитель (если нужен) -->
                     <RowDefinition Height="*"/>
+                    <!-- (4) DataGrid -->
                     <RowDefinition Height="Auto"/>
-
+                    <!-- (5) Кнопки Добавить/Удалить -->
                 </Grid.RowDefinitions>
 
-                <TextBlock Text="{Binding StaffListTitle, FallbackValue='Сотрудники'}" Grid.Row="0" FontWeight="Bold" Margin="8"/>
+                <!-- (0) НОВАЯ ПАНЕЛЬ-ЗАГОЛОВОК -->
+                <Border Grid.Row="0" Background="#E8EDF9" BorderBrush="#B0B0B0" BorderThickness="0,0,0,1" Padding="8,5">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Row="1" Margin="4,0,4,8">
+                        <!-- Текст "Сотрудники" теперь здесь, слева -->
+                        <TextBlock Grid.Column="0" Text="{Binding StaffListTitle, FallbackValue='Преподаватели'}" 
+                       FontWeight="Bold" VerticalAlignment="Center"/>
+
+                        <!-- Кнопка теперь здесь, справа (пока без команды, вы можете привязать ее позже) -->
+                        <!-- Например, можно использовать ее для экспорта всего списка преподавателей -->
+                        <Button Grid.Column="1" Content="Экспорт в Excel" Padding="8,2" VerticalAlignment="Center" Command="{Binding ExportToExcelCommand}"/>
+                    </Grid>
+                </Border>
+
+                <!-- (1) Поиск (старый Grid.Row="1" стал Grid.Row="1") -->
+                <StackPanel Grid.Row="1" Margin="4,8,4,8">
                     <TextBlock Text="Поиск:" Margin="4,0,0,4"/>
                     <TextBox x:Name="SearchBox" TextChanged="SearchBox_TextChanged" Margin="4,0"/>
                 </StackPanel>
 
+                <!-- (2) Кнопка "Учителя" (старый Grid.Row="2" стал Grid.Row="2") -->
                 <Grid Grid.Row="2" Margin="4,0,4,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <!-- По нажатию откроется окно TeacherMonitoringWindow -->
-                    <Button Grid.Column="0"
-            Content="Учителя"
-            Margin="4,0,0,0"
-            Click="OnTeachersButton_Click" Grid.ColumnSpan="2"/>
-
-                    <!-- Преподаватели оставляем как было -->
+                    <Button Content="Учителя"
+                Click="OnTeachersButton_Click"/>
                 </Grid>
 
-
-                <DataGrid x:Name="TeachersGrid" Grid.Row="3" ItemsSource="{Binding Teachers}" SelectedItem="{Binding SelectedTeacher, Mode=TwoWay}" 
-                          AutoGenerateColumns="False" CanUserAddRows="False" Margin="4,0,4,0" HorizontalScrollBarVisibility="Auto"
-                          PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                <!-- (4) DataGrid (старый Grid.Row="3" стал Grid.Row="4") -->
+                <DataGrid x:Name="TeachersGrid" Grid.Row="4" ItemsSource="{Binding Teachers}" SelectedItem="{Binding SelectedTeacher, Mode=TwoWay}" 
+              AutoGenerateColumns="False" CanUserAddRows="False" Margin="4,0,4,0" HorizontalScrollBarVisibility="Auto"
+              PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="ФИО" Binding="{Binding FullName, UpdateSourceTrigger=PropertyChanged}" Width="*" 
-                            ElementStyle="{StaticResource WrappedTextBlockCellStyle}" 
-                            EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                ElementStyle="{StaticResource WrappedTextBlockCellStyle}" 
+                EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <Grid Grid.Row="4" Margin="0,0,0,0" HorizontalAlignment="Center">
+                <!-- (5) Кнопки Добавить/Удалить (старый Grid.Row="4" стал Grid.Row="5") -->
+                <Grid Grid.Row="5" Margin="0,0,0,0" HorizontalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
@@ -134,6 +149,23 @@
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
                             <Button Content="+" Command="{Binding SelectedTeacher.AddAcademicResultCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
                             <Button Content="-" Command="{Binding SelectedTeacher.DeleteAcademicResultCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        </StackPanel>
+
+                        <!-- 1A. Результаты промежуточной аттестации (НОВАЯ ТАБЛИЦА) -->
+                        <TextBlock Text="1А. Результаты промежуточной аттестации" FontWeight="Bold" Margin="0,8,0,4"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.IntermediateAssessments}" SelectedItem="{Binding SelectedTeacher.SelectedIntermediateAssessment, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Учебный год" Binding="{Binding AcademicYear}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Предмет" Binding="{Binding Subject}" Width="Auto" MinWidth="180" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="СР БАЛ" Binding="{Binding AvgScore}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="КАЧЕСТВО" Binding="{Binding Quality}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="СОУ" Binding="{Binding Sou}" Width="Auto" MinWidth="90" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
+                            <Button Content="+" Command="{Binding SelectedTeacher.AddIntermediateAssessmentCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteIntermediateAssessmentCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
                         </StackPanel>
 
                         <!-- 2. Результаты государственной итоговой аттестации (ГИА) -->

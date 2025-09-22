@@ -11,6 +11,8 @@ using Ynost.Services;
 using Ynost.ViewModels; // Убедись, что этот using есть для LoginResultRole
 using Ynost.View;    // Для LoginWindow
 using Ynost.Properties; // Для Settings
+using System.IO;
+using Microsoft.Win32;
 
 namespace Ynost.ViewModels
 {
@@ -76,6 +78,7 @@ namespace Ynost.ViewModels
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(DeleteStaffCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ExportToExcelCommand))]
         private TeacherViewModel? selectedTeacher;
 
         public IAsyncRelayCommand RetryConnectionCommand { get; }
@@ -83,6 +86,7 @@ namespace Ynost.ViewModels
         public IRelayCommand ToggleLoginCommand { get; }
         public IRelayCommand AddStaffCommand { get; }
         public IAsyncRelayCommand DeleteStaffCommand { get; }
+        public IAsyncRelayCommand ExportToExcelCommand { get; }
 
 
         public MainViewModel()
@@ -94,6 +98,7 @@ namespace Ynost.ViewModels
             ToggleLoginCommand = new RelayCommand(ExecuteToggleLogin);
             AddStaffCommand = new RelayCommand(ExecuteAddStaff, () => CanEditData);
             DeleteStaffCommand = new AsyncRelayCommand(ExecuteDeleteStaff, CanExecuteDeleteStaff);
+            ExportToExcelCommand = new AsyncRelayCommand(ExportDataToExcel, CanExportDataToExcel);
 
             // Начальная установка статусов
             if (Settings.Default.RememberLastUser && !string.IsNullOrEmpty(Settings.Default.LastUsername))
@@ -383,7 +388,53 @@ namespace Ynost.ViewModels
         {
             return SelectedTeacher != null && CanEditData;
         }
+        private bool CanExportDataToExcel()
+        {
+            return SelectedTeacher != null;
+        }
 
-        // Убрали Dispose, так как NetworkAvailabilityService удален
+        private async Task ExportDataToExcel()
+        {
+            if (SelectedTeacher == null) return;
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "Excel Macro-Enabled Workbook (*.xlsm)|*.xlsm",
+                FileName = $"{SelectedTeacher.FullName}-Преподаватель.xlsm",
+                Title = "Сохранить данные преподавателя"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                StatusText = "Экспорт данных в Excel...";
+                IsLoading = true; // Можно использовать существующий флаг для индикации
+
+                try
+                {
+                    string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExcelTemplate/template.xlsm");
+                    if (!File.Exists(templatePath))
+                    {
+                        MessageBox.Show("Файл шаблона 'template.xlsm' не найден.", "Ошибка экспорта", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+
+                    var exportService = new ExcelExportService();
+                    // Выполняем ресурсоемкую операцию в фоновом потоке
+                    await Task.Run(() => exportService.ExportTeacherData(SelectedTeacher, templatePath, dialog.FileName));
+
+                    MessageBox.Show($"Данные успешно экспортированы в файл:\n{dialog.FileName}", "Экспорт завершен", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Write(ex, "EXPORT-EXCEL");
+                    MessageBox.Show($"Произошла ошибка при экспорте: {ex.Message}", "Ошибка экспорта", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                finally
+                {
+                    IsLoading = false;
+                    StatusText = "Экспорт завершен.";
+                }
+            }
+        }
     }
 }
