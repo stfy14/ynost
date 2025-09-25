@@ -106,7 +106,7 @@ namespace Ynost.ViewModels
                 }
 
                 // Если разница вычислена, форматируем её в строку со знаком "+" для положительных чисел.
-                return difference?.ToString("+#.##;-#.##;0", CultureInfo.CurrentCulture) ?? string.Empty;
+                return difference?.ToString("+0.##;-0.##;0", CultureInfo.CurrentCulture) ?? string.Empty;
             }
             set
             {
