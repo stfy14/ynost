@@ -13,6 +13,7 @@ using Ynost.View;    // Для LoginWindow
 using Ynost.Properties; // Для Settings
 using System.IO;
 using Microsoft.Win32;
+using System.Data;
 
 namespace Ynost.ViewModels
 {
@@ -194,78 +195,97 @@ namespace Ynost.ViewModels
 
         private async Task ExecuteSaveChanges()
         {
-            /* 1. Проверяем соединение */
+            if (SelectedTeacher == null)
+            {
+                MessageBox.Show("Не выбран преподаватель для сохранения.", "Сохранение", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
             if (!IsDatabaseConnected)
             {
-                MessageBox.Show("Нет соединения с базой данных.",
-                                "Сохранение",
-                                MessageBoxButton.OK,
-                                MessageBoxImage.Warning);
+                MessageBox.Show("Нет соединения с базой данных.", "Сохранение", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             IsSavingData = true;
-            StatusText = "Идёт сохранение данных…";
+            StatusText = $"Идёт сохранение данных для: {SelectedTeacher.FullName}...";
             Logger.Write("=== ExecuteSaveChanges() entered ===");
 
             bool ok = false;
             try
             {
-                /* 2. Синхронизируем VM → Model */
-                foreach (var tvm in Teachers)
-                    tvm.SyncToModel();
+                Logger.Write("[UI] Calling SaveTeacherChangesAsync() …");
 
-                Logger.Write("[UI] Calling SaveAllAsync() …");
+                // --- НАЧАЛО ИЗМЕНЕНИЙ ---
+                // 1. Вызываем метод, который теперь ничего не возвращает
+                await _db.SaveTeacherChangesAsync(SelectedTeacher);
 
-                /* 3. Сохраняем и получаем результат */
-                ok = await _db.SaveAllAsync(Teachers.Select(t => t.Model));
+                // 2. Если мы дошли до сюда, значит, исключения не было - все успешно
+                ok = true;
 
-                if (ok)
+                Logger.Write("[UI] SaveTeacherChangesAsync → OK");
+                SelectedTeacher.ClearAllChanges();
+                StatusText = "Изменения успешно сохранены.";
+                MessageBox.Show(StatusText, "Сохранение", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // Блок 'else' здесь больше не нужен
+            }
+            catch (DBConcurrencyException ex)
+            {
+                Logger.Write(ex, "Concurrency Conflict");
+                ok = false;
+
+                string title = "Конфликт сохранения";
+                string message = "Не удалось сохранить ваши изменения.\n\n" +
+                                 "Причина: Данные были обновлены другим пользователем, пока вы их редактировали.\n" +
+                                 "Конфликтные записи подсвечены красным.\n\n" +
+                                 "Посдказка: \n" + 
+                                 "Вы можете открыть 2 программы одновременно и сравнить ваши изменения и свои.";
+
+                MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                // --- НОВАЯ ЛОГИКА ---
+                // Загружаем свежие данные и подсвечиваем конфликты
+                if (SelectedTeacher != null)
                 {
-                    Logger.Write("[UI] SaveAllAsync → OK");
-                    MessageBox.Show("Изменения сохранены.",
-                                    "Сохранение",
-                                    MessageBoxButton.OK,
-                                    MessageBoxImage.Information);
-
-                    await LoadDataAsync();           // перезагружаем данные
-                }
-                else
-                {
-                    /* 4. Берём подробную ошибку из DatabaseService.LastError */
-                    string err = _db.LastError ?? "Не удалось сохранить данные.";
-                    Logger.Write($"[UI] SaveAllAsync → FAIL: {err}");
-
-                    MessageBox.Show(err,
-                                    "Ошибка сохранения",
-                                    MessageBoxButton.OK,
-                                    MessageBoxImage.Error);
+                    var freshData = await _db.LoadSingleTeacherAsync(SelectedTeacher.Id);
+                    if (freshData != null)
+                    {
+                        SelectedTeacher.HighlightConflicts(freshData);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                /* 5. Любая непойманная выше ошибка */
                 Logger.Write(ex, "ExecuteSaveChanges Exception");
+                ok = false;
 
-                MessageBox.Show($"Произошла непредвиденная ошибка:\n{ex}",
-                                "Ошибка сохранения",
-                                MessageBoxButton.OK,
-                                MessageBoxImage.Error);
+                string title = "Критическая ошибка сохранения";
+                string message = "При сохранении данных произошла непредвиденная ошибка. Ваши изменения не были сохранены.\n\n" +
+                                 "Пожалуйста, проверьте ваше соединение с базой данных и попробуйте снова.\n\n" +
+                                 "Детали ошибки (для службы поддержки):\n" +
+                                 ex.Message;
+
+                MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            // --- КОНЕЦ ИЗМЕНЕНИЙ ---
             finally
             {
                 IsSavingData = false;
-                StatusText = ok
-                    ? "Данные успешно сохранены."
-                    : (IsDatabaseConnected ? "Ошибка при сохранении." : ConnectionStatusText);
-
+                if (ok)
+                {
+                    await LoadDataAsync();
+                }
+                else
+                {
+                    StatusText = IsDatabaseConnected ? "Ошибка при сохранении." : ConnectionStatusText;
+                }
                 Logger.Write("=== ExecuteSaveChanges() exit ===");
             }
         }
 
         private bool CanExecuteSaveChanges()
         {
-            return CanEditData && !IsSavingData;
+            return SelectedTeacher != null && CanEditData && !IsSavingData;
         }
 
         public async Task LoadDataAsync()

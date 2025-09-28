@@ -1,18 +1,38 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Ynost.Models;
+using System;
 
 namespace Ynost.Models;
 
-public class DemoExamResult
+public partial class DemoExamResult : ObservableObject, IChangeTrackable
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid TeacherId { get; set; }        // ← добавить
-    public string Subject { get; set; } = string.Empty;
-    public string Group { get; set; } = string.Empty;
-    public string TotalParticipants { get; set; } = string.Empty;
-    public string Count5 { get; set; } = string.Empty;
-    public string Count4 { get; set; } = string.Empty;
-    public string Count3 { get; set; } = string.Empty;
-    public string Count2 { get; set; } = string.Empty;
-    public string AvgScore { get; set; } = string.Empty;
-    public string Link { get; set; } = string.Empty;
+    [ObservableProperty]
+    private Guid _id = Guid.NewGuid();
+    [ObservableProperty]
+    private Guid _teacherId;
+    [ObservableProperty]
+    private string _subject = string.Empty;
+    [ObservableProperty]
+    private string _group = string.Empty;
+    [ObservableProperty]
+    private string _totalParticipants = string.Empty;
+    [ObservableProperty]
+    private string _count5 = string.Empty;
+    [ObservableProperty]
+    private string _count4 = string.Empty;
+    [ObservableProperty]
+    private string _count3 = string.Empty;
+    [ObservableProperty]
+    private string _count2 = string.Empty;
+    [ObservableProperty]
+    private string _avgScore = string.Empty;
+    [ObservableProperty]
+    private string _link = string.Empty;
+
+    [ObservableProperty]
+    private int _version = 1;
+
+    [ObservableProperty]
+    [System.Text.Json.Serialization.JsonIgnore]
+    private bool _isConflicting;
 }

@@ -1,27 +1,54 @@
-﻿namespace Ynost.Models;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Ynost.Models;
 
-public class Teacher
+namespace Ynost.Models;
+
+public partial class Teacher : ObservableObject, IChangeTrackable
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid TeacherId { get; set; }        // ← добавить
-    public string FullName { get; set; } = string.Empty;
-    public bool IsLecturer { get; set; }
+    [ObservableProperty]
+    private Guid _id = Guid.NewGuid();
+    [ObservableProperty]
+    private Guid _teacherId;
+    [ObservableProperty]
+    private string _fullName = string.Empty;
+    [ObservableProperty]
+    private bool _isLecturer;
 
-    /* ------------ 14 списков — делаем set; чтобы ViewModel могла перезаписать -------- */
-    public List<AcademicYearResult> AcademicResults { get; set; } = new();
-    public List<IntermediateAssessment> IntermediateAssessments { get; set; } = new();
-    public List<GiaResult> GiaResults { get; set; } = new();
-    public List<DemoExamResult> DemoExamResults { get; set; } = new();
-    public List<IndependentAssessment> IndependentAssessments { get; set; } = new();
-    public List<SelfDeterminationActivity> SelfDeterminations { get; set; } = new();
-    public List<StudentOlympiad> StudentOlympiads { get; set; } = new();
-    public List<JuryActivity> JuryActivities { get; set; } = new();
-    public List<MasterClass> MasterClasses { get; set; } = new();
-    public List<Speech> Speeches { get; set; } = new();
-    public List<Publication> Publications { get; set; } = new();
-    public List<ExperimentalProject> ExperimentalProjects { get; set; } = new();
-    public List<Mentorship> Mentorships { get; set; } = new();
-    public List<ProgramMethodSupport> ProgramSupports { get; set; } = new();
-    public List<ProfessionalCompetition> ProfessionalCompetitions { get; set; } = new();
+    [ObservableProperty]
+    private List<AcademicYearResult> _academicResults = new();
+    [ObservableProperty]
+    private List<IntermediateAssessment> _intermediateAssessments = new();
+    [ObservableProperty]
+    private List<GiaResult> _giaResults = new();
+    [ObservableProperty]
+    private List<DemoExamResult> _demoExamResults = new();
+    [ObservableProperty]
+    private List<IndependentAssessment> _independentAssessments = new();
+    [ObservableProperty]
+    private List<SelfDeterminationActivity> _selfDeterminations = new();
+    [ObservableProperty]
+    private List<StudentOlympiad> _studentOlympiads = new();
+    [ObservableProperty]
+    private List<JuryActivity> _juryActivities = new();
+    [ObservableProperty]
+    private List<MasterClass> _masterClasses = new();
+    [ObservableProperty]
+    private List<Speech> _speeches = new();
+    [ObservableProperty]
+    private List<Publication> _publications = new();
+    [ObservableProperty]
+    private List<ExperimentalProject> _experimentalProjects = new();
+    [ObservableProperty]
+    private List<Mentorship> _mentorships = new();
+    [ObservableProperty]
+    private List<ProgramMethodSupport> _programSupports = new();
+    [ObservableProperty]
+    private List<ProfessionalCompetition> _professionalCompetitions = new();
+
+    [ObservableProperty]
+    private int _version = 1;
+
+    [ObservableProperty]
+    [System.Text.Json.Serialization.JsonIgnore]
+    private bool _isConflicting;
 }
-    

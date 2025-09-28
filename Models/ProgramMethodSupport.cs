@@ -1,12 +1,25 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Ynost.Models;
+using System;
 
 namespace Ynost.Models;
 
-public class ProgramMethodSupport
+public partial class ProgramMethodSupport : ObservableObject, IChangeTrackable
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid TeacherId { get; set; }        // ← добавить
-    public string ProgramName { get; set; } = string.Empty;
-    public bool HasControlMaterials { get; set; }
-    public string Link { get; set; } = string.Empty;
+    [ObservableProperty]
+    private Guid _id = Guid.NewGuid();
+    [ObservableProperty]
+    private Guid _teacherId;
+    [ObservableProperty]
+    private string _programName = string.Empty;
+    [ObservableProperty]
+    private bool _hasControlMaterials;
+    [ObservableProperty]
+    private string _link = string.Empty;
+
+    [ObservableProperty]
+    private int _version = 1;
+    [ObservableProperty]
+    [System.Text.Json.Serialization.JsonIgnore]
+    private bool _isConflicting;
 }

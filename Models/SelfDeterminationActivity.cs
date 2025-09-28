@@ -1,13 +1,28 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Ynost.Models;
+using System;
 
 namespace Ynost.Models;
 
-public class SelfDeterminationActivity
+public partial class SelfDeterminationActivity : ObservableObject, IChangeTrackable
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid TeacherId { get; set; }        // ← добавить
-    public string Level { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public string Role { get; set; } = string.Empty;
-    public string Link { get; set; } = string.Empty;
+    [ObservableProperty]
+    private Guid id = Guid.NewGuid();
+    [ObservableProperty]
+    private Guid teacherId;
+    [ObservableProperty]
+    private string level = string.Empty;
+    [ObservableProperty]
+    private string name = string.Empty;
+    [ObservableProperty]
+    private string role = string.Empty;
+    [ObservableProperty]
+    private string link = string.Empty;
+
+    [ObservableProperty]
+    private int version = 1;
+
+    [ObservableProperty]
+    [System.Text.Json.Serialization.JsonIgnore]
+    private bool _isConflicting;
 }

@@ -23,6 +23,17 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisConverter"/>
         <local:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
         <local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisConverter"/>
+
+        <Style TargetType="DataGridCell">
+            <Style.Triggers>
+                <!-- DataContext ячейки - это вся строка (например, AcademicYearResult) -->
+                <DataTrigger Binding="{Binding IsConflicting}" Value="True">
+                    <Setter Property="Background" Value="#FFB6C1" />
+                    <!-- Светло-розовый цвет -->
+                    <Setter Property="ToolTip" Value="Эти данные были изменены или удалены другим пользователем!" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid>

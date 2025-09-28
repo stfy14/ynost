@@ -10,5 +10,6 @@ namespace Ynost.Models
     {
         Guid Id { get; }
         int Version { get; set; }
+        bool IsConflicting { get; set; }
     }
 }

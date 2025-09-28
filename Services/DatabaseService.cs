@@ -1,15 +1,17 @@
-﻿using System;
+﻿using Dapper;
+using Newtonsoft.Json;
+using Npgsql;
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Data;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using Dapper;
-using Npgsql;
-using Newtonsoft.Json;
 using Ynost.Models;
-using System.Collections.ObjectModel;
+using Ynost.ViewModels;
 
 namespace Ynost.Services
 {
@@ -36,6 +38,176 @@ namespace Ynost.Services
             _cachePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "teachers_cache.json");
             Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
         }
+
+        #region New Save Logic (Change Tracking)
+
+        /// <summary>
+        /// Сохраняет все отслеженные изменения для одного преподавателя в одной транзакции.
+        /// В случае успеха завершается. В случае ошибки - выбрасывает исключение.
+        /// </summary>
+        public async Task SaveTeacherChangesAsync(TeacherViewModel teacherVm) // <-- 1. Возвращаемый тип изменен на Task
+        {
+            LastError = null;
+            if (teacherVm == null)
+            {
+                throw new ArgumentNullException(nameof(teacherVm), "ViewModel преподавателя не может быть null.");
+            }
+
+            // --- 2. УДАЛЕН ВНЕШНИЙ БЛОК TRY-CATCH ---
+            // Теперь исключения будут пробрасываться наверх, в вызывающий код (ViewModel)
+
+            await using var db = Conn(_cs);
+            await db.OpenAsync();
+            await using var tx = await db.BeginTransactionAsync();
+
+            try
+            {
+                // 1. Обновляем самого преподавателя, если он изменился.
+                await UpdateTeacherAsync(db, tx, teacherVm.Model);
+
+                // 2. Применяем изменения для каждой из 15 дочерних коллекций
+                await ApplyChangesForTypeAsync<AcademicYearResult>(db, tx, "academic_year_results", teacherVm);
+                await ApplyChangesForTypeAsync<IntermediateAssessment>(db, tx, "intermediate_assessments", teacherVm);
+                await ApplyChangesForTypeAsync<GiaResult>(db, tx, "gia_results", teacherVm);
+                await ApplyChangesForTypeAsync<DemoExamResult>(db, tx, "demo_exam_results", teacherVm);
+                await ApplyChangesForTypeAsync<IndependentAssessment>(db, tx, "independent_assessments", teacherVm);
+                await ApplyChangesForTypeAsync<SelfDeterminationActivity>(db, tx, "self_determinations", teacherVm);
+                await ApplyChangesForTypeAsync<StudentOlympiad>(db, tx, "student_olympiads", teacherVm);
+                await ApplyChangesForTypeAsync<JuryActivity>(db, tx, "jury_activities", teacherVm);
+                await ApplyChangesForTypeAsync<MasterClass>(db, tx, "master_classes", teacherVm);
+                await ApplyChangesForTypeAsync<Speech>(db, tx, "speeches", teacherVm);
+                await ApplyChangesForTypeAsync<Publication>(db, tx, "publications", teacherVm);
+                await ApplyChangesForTypeAsync<ExperimentalProject>(db, tx, "experimental_projects", teacherVm);
+                await ApplyChangesForTypeAsync<Mentorship>(db, tx, "mentorships", teacherVm);
+                await ApplyChangesForTypeAsync<ProgramMethodSupport>(db, tx, "program_supports", teacherVm);
+                await ApplyChangesForTypeAsync<ProfessionalCompetition>(db, tx, "professional_competitions", teacherVm);
+
+                await tx.CommitAsync();
+            }
+            catch (Exception)
+            {
+                // Если что-то пошло не так, откатываем транзакцию и пробрасываем ошибку дальше
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        // Остальные методы (UpdateTeacherAsync, ApplyChangesForTypeAsync и т.д.) остаются без изменений
+
+        private async Task UpdateTeacherAsync(IDbConnection db, IDbTransaction tx, Teacher teacher)
+        {
+            const string sql = @"
+                UPDATE teachers SET 
+                    full_name = @FullName, 
+                    is_lecturer = @IsLecturer,
+                    version = version + 1
+                WHERE id = @Id AND version = @Version;";
+
+            var affectedRows = await db.ExecuteAsync(sql, teacher, tx);
+            if (affectedRows == 0)
+                throw new DBConcurrencyException($"Конфликт одновременного доступа при обновлении преподавателя '{teacher.FullName}'. Данные были изменены другим пользователем.");
+        }
+
+        private async Task ApplyChangesForTypeAsync<T>(IDbConnection db, IDbTransaction tx, string tableName, TeacherViewModel vm) where T : class, IChangeTrackable
+        {
+            var changeset = vm.GetChangesetForType(typeof(T));
+            if (changeset == null) return;
+
+            var deletedIds = changeset.GetDeletedItemIds().ToList();
+            var addedItems = changeset.GetAddedItems().Cast<T>().ToList();
+            var modifiedItems = changeset.GetModifiedItems().Cast<T>().ToList();
+
+            if (deletedIds.Any()) await DeleteItemsAsync(db, tx, tableName, deletedIds);
+            if (addedItems.Any()) await InsertItemsAsync(db, tx, tableName, addedItems);
+            if (modifiedItems.Any()) await UpdateItemsAsync(db, tx, tableName, modifiedItems);
+        }
+
+        private async Task DeleteItemsAsync(IDbConnection db, IDbTransaction tx, string tableName, List<Guid> ids)
+        {
+            await db.ExecuteAsync($"DELETE FROM {tableName} WHERE id = ANY(@Ids)", new { Ids = ids }, tx);
+        }
+
+        private async Task InsertItemsAsync<T>(IDbConnection db, IDbTransaction tx, string tableName, List<T> items)
+        {
+            var props = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                // --- ИЗМЕНЕНИЕ: Игнорируем свойства Version и IsConflicting при вставке ---
+                .Where(p => p.Name != "Version" && p.Name != "IsConflicting")
+                .ToList();
+
+            var columnNames = props.Select(p => p.Name.ToSnake());
+            var columns = string.Join(",", columnNames.Select(c => c == "group" ? "\"group\"" : c));
+            var values = string.Join(",", props.Select(p => "@" + p.Name));
+
+            var sql = $"INSERT INTO {tableName} ({columns}) VALUES ({values});";
+            await db.ExecuteAsync(sql, items, tx);
+        }
+
+        private async Task UpdateItemsAsync<T>(IDbConnection db, IDbTransaction tx, string tableName, List<T> items) where T : IChangeTrackable
+        {
+            var props = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                // --- ИЗМЕНЕНИЕ: Игнорируем ключевые и UI-свойства при обновлении ---
+                .Where(p => p.Name != "Id" && p.Name != "Version" && p.Name != "IsConflicting")
+                .ToList();
+
+            var setClause = string.Join(", ", props.Select(p => {
+                var colName = p.Name.ToSnake();
+                return $"{(colName == "group" ? "\"group\"" : colName)} = @{p.Name}";
+            }));
+
+            var sql = $"UPDATE {tableName} SET {setClause}, version = version + 1 WHERE id = @Id AND version = @Version;";
+
+            foreach (var item in items)
+            {
+                var affectedRows = await db.ExecuteAsync(sql, item, tx);
+                if (affectedRows == 0)
+                    throw new DBConcurrencyException($"Конфликт одновременного доступа при обновлении записи в таблице '{tableName}' (ID: {item.Id}). Данные были изменены другим пользователем.");
+            }
+        }
+
+        #endregion
+
+        #region For fill conflict
+        public async Task<Teacher?> LoadSingleTeacherAsync(Guid teacherId)
+        {
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+
+                var teacher = await db.QuerySingleOrDefaultAsync<Teacher>("SELECT * FROM teachers WHERE id = @teacherId", new { teacherId });
+                if (teacher == null) return null;
+
+                async Task LoadChildAsync<T>(string table, Action<Teacher, List<T>> setter) where T : class
+                {
+                    var items = (await db.QueryAsync<T>($"SELECT * FROM {table} WHERE teacher_id = @teacherId", new { teacherId })).ToList();
+                    setter(teacher, items);
+                }
+
+                await LoadChildAsync<AcademicYearResult>("academic_year_results", (t, r) => t.AcademicResults = r);
+                await LoadChildAsync<IntermediateAssessment>("intermediate_assessments", (t, r) => t.IntermediateAssessments = r);
+                await LoadChildAsync<GiaResult>("gia_results", (t, r) => t.GiaResults = r);
+                await LoadChildAsync<DemoExamResult>("demo_exam_results", (t, r) => t.DemoExamResults = r);
+                await LoadChildAsync<IndependentAssessment>("independent_assessments", (t, r) => t.IndependentAssessments = r);
+                await LoadChildAsync<SelfDeterminationActivity>("self_determinations", (t, r) => t.SelfDeterminations = r);
+                await LoadChildAsync<StudentOlympiad>("student_olympiads", (t, r) => t.StudentOlympiads = r);
+                await LoadChildAsync<JuryActivity>("jury_activities", (t, r) => t.JuryActivities = r);
+                await LoadChildAsync<MasterClass>("master_classes", (t, r) => t.MasterClasses = r);
+                await LoadChildAsync<Speech>("speeches", (t, r) => t.Speeches = r);
+                await LoadChildAsync<Publication>("publications", (t, r) => t.Publications = r);
+                await LoadChildAsync<ExperimentalProject>("experimental_projects", (t, r) => t.ExperimentalProjects = r);
+                await LoadChildAsync<Mentorship>("mentorships", (t, r) => t.Mentorships = r);
+                await LoadChildAsync<ProgramMethodSupport>("program_supports", (t, r) => t.ProgramSupports = r);
+                await LoadChildAsync<ProfessionalCompetition>("professional_competitions", (t, r) => t.ProfessionalCompetitions = r);
+
+                return teacher;
+            }
+            catch (Exception ex)
+            {
+                Logger.Write(ex, "DB-LOAD-SINGLE");
+                return null;
+            }
+        }
+        #endregion
 
         #region Helpers
 
@@ -174,84 +346,6 @@ ORDER BY subject, quarter;";
             ex is PostgresException pex
                 ? $"PostgreSQL: {pex.MessageText} (SQLSTATE {pex.SqlState})"
                 : ex.ToString();
-
-        public async Task<bool> SaveAllAsync(IEnumerable<Teacher> teachers, CancellationToken ct = default)
-        {
-            LastError = null;
-            var list = teachers?.ToList() ?? new();
-
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync(ct);
-                await using var tx = await db.BeginTransactionAsync(ct);
-
-                const string upsertSql = @"
-INSERT INTO teachers (id, full_name, is_lecturer)
-VALUES (@Id, @FullName, @IsLecturer)
-ON CONFLICT (id) DO UPDATE
-SET full_name   = EXCLUDED.full_name,
-    is_lecturer = EXCLUDED.is_lecturer;";
-
-                foreach (var t in list)
-                {
-                    await db.ExecuteAsync(upsertSql, t, tx);
-
-                    await ReplaceAsync(db, tx, "academic_year_results", t.Id, t.AcademicResults);
-                    await ReplaceAsync(db, tx, "intermediate_assessments", t.Id, t.IntermediateAssessments); // ← ДОБАВЛЕНО
-                    await ReplaceAsync(db, tx, "gia_results", t.Id, t.GiaResults);
-                    await ReplaceAsync(db, tx, "demo_exam_results", t.Id, t.DemoExamResults);
-                    await ReplaceAsync(db, tx, "independent_assessments", t.Id, t.IndependentAssessments);
-                    await ReplaceAsync(db, tx, "self_determinations", t.Id, t.SelfDeterminations);
-                    await ReplaceAsync(db, tx, "student_olympiads", t.Id, t.StudentOlympiads);
-                    await ReplaceAsync(db, tx, "jury_activities", t.Id, t.JuryActivities);
-                    await ReplaceAsync(db, tx, "master_classes", t.Id, t.MasterClasses);
-                    await ReplaceAsync(db, tx, "speeches", t.Id, t.Speeches);
-                    await ReplaceAsync(db, tx, "publications", t.Id, t.Publications);
-                    await ReplaceAsync(db, tx, "experimental_projects", t.Id, t.ExperimentalProjects);
-                    await ReplaceAsync(db, tx, "mentorships", t.Id, t.Mentorships);
-                    await ReplaceAsync(db, tx, "program_supports", t.Id, t.ProgramSupports);
-                    await ReplaceAsync(db, tx, "professional_competitions", t.Id, t.ProfessionalCompetitions);
-                }
-
-                await tx.CommitAsync(ct);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                LastError = FormatError(ex);
-                Logger.Write(ex, "DB-SAVE");
-                return false;
-            }
-        }
-
-        private static async Task ReplaceAsync<T>(
-            IDbConnection db,
-            IDbTransaction tx,
-            string table,
-            Guid teacherId,
-            IEnumerable<T> rows)
-        {
-            var list = rows.ToList();
-
-            await db.ExecuteAsync(
-                $"DELETE FROM {table} WHERE teacher_id = @teacherId",
-                new { teacherId }, tx);
-
-            if (!list.Any()) return;
-
-            var props = typeof(T).GetProperties();
-            var columnNames = props.Select(p =>
-            {
-                var snake = p.Name.ToSnake();
-                return snake == "group" ? "\"group\"" : snake;
-            });
-            var columns = string.Join(",", columnNames);
-            var values = string.Join(",", props.Select(p => "@" + p.Name));
-            var insertSql = $"INSERT INTO {table} ({columns}) VALUES ({values});";
-
-            await db.ExecuteAsync(insertSql, list, tx);
-        }
 
         public async Task<List<AcademicResultMetric>> LoadAcademicResultMetricsAsync(
          Guid teachId, string academicYear)

@@ -1,5 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Ynost.Models;
@@ -8,102 +12,267 @@ namespace Ynost.ViewModels
 {
     public partial class TeacherViewModel : ObservableObject
     {
-        // ─────────────────────────────────────────────────────────────────────────
-        // 1) Храним ссылку на доменную модель Teacher:
         private readonly Teacher _model;
+
+        // Словарь для хранения всех трекеров изменений
+        private readonly Dictionary<Type, IChangeset> _changesets = new();
 
         public TeacherViewModel(Teacher model)
         {
             _model = model ?? throw new ArgumentNullException(nameof(model));
 
-            // Инициализируем коллекции дочерних сущностей из _model:
-            AcademicResults = new ObservableCollection<AcademicYearResult>(_model.AcademicResults);
-            IntermediateAssessments = new ObservableCollection<IntermediateAssessment>(_model.IntermediateAssessments); // ← ДОБАВЛЕНО
-            GiaResults = new ObservableCollection<GiaResult>(_model.GiaResults);
-            DemoExamResults = new ObservableCollection<DemoExamResult>(_model.DemoExamResults);
-            IndependentAssessments = new ObservableCollection<IndependentAssessment>(_model.IndependentAssessments);
-            SelfDeterminations = new ObservableCollection<SelfDeterminationActivity>(_model.SelfDeterminations);
-            StudentOlympiads = new ObservableCollection<StudentOlympiad>(_model.StudentOlympiads);
-            JuryActivities = new ObservableCollection<JuryActivity>(_model.JuryActivities);
-            MasterClasses = new ObservableCollection<MasterClass>(_model.MasterClasses);
-            Speeches = new ObservableCollection<Speech>(_model.Speeches);
-            Publications = new ObservableCollection<Publication>(_model.Publications);
-            ExperimentalProjects = new ObservableCollection<ExperimentalProject>(_model.ExperimentalProjects);
-            Mentorships = new ObservableCollection<Mentorship>(_model.Mentorships);
-            ProgramSupports = new ObservableCollection<ProgramMethodSupport>(_model.ProgramSupports);
-            ProfessionalCompetitions = new ObservableCollection<ProfessionalCompetition>(_model.ProfessionalCompetitions);
+            // Инициализация коллекций и регистрация их для отслеживания
+            AcademicResults = RegisterCollection(model.AcademicResults);
+            IntermediateAssessments = RegisterCollection(model.IntermediateAssessments);
+            GiaResults = RegisterCollection(model.GiaResults);
+            DemoExamResults = RegisterCollection(model.DemoExamResults);
+            IndependentAssessments = RegisterCollection(model.IndependentAssessments);
+            SelfDeterminations = RegisterCollection(model.SelfDeterminations);
+            StudentOlympiads = RegisterCollection(model.StudentOlympiads);
+            JuryActivities = RegisterCollection(model.JuryActivities);
+            MasterClasses = RegisterCollection(model.MasterClasses);
+            Speeches = RegisterCollection(model.Speeches);
+            Publications = RegisterCollection(model.Publications);
+            ExperimentalProjects = RegisterCollection(model.ExperimentalProjects);
+            Mentorships = RegisterCollection(model.Mentorships);
+            ProgramSupports = RegisterCollection(model.ProgramSupports);
+            ProfessionalCompetitions = RegisterCollection(model.ProfessionalCompetitions);
         }
 
-        // ─────────────────────────────────────────────────────────────────────────
-        // 2) Публичное свойство, чтобы MainViewModel мог передать именно оригинальный Teacher в SaveAllAsync:
         public Teacher Model => _model;
-
-        // 3) Несколько «одноуровневых» свойств для отображения в UI:
         public Guid Id => _model.Id;
-        public string FullName
+        public string FullName { get => _model.FullName; set => SetProperty(_model.FullName, value, _model, (m, v) => m.FullName = v); }
+
+        #region Generic Change Tracking Logic
+
+        /// <summary>
+        /// Вспомогательный интерфейс для работы с разнотипными наборами изменений.
+        /// </summary>
+        public interface IChangeset
         {
-            get => _model.FullName;
-            set
+            IEnumerable<IChangeTrackable> GetAddedItems();
+            IEnumerable<IChangeTrackable> GetModifiedItems();
+            IEnumerable<Guid> GetDeletedItemIds();
+            void Clear();
+        }
+
+        /// <summary>
+        /// Класс, хранящий изменения для одного типа сущностей.
+        /// </summary>
+        private class Changeset<T> : IChangeset where T : class, IChangeTrackable, INotifyPropertyChanged
+        {
+            public readonly List<T> Added = new();
+            public readonly List<T> Modified = new();
+            public readonly List<Guid> DeletedIds = new();
+
+            public IEnumerable<IChangeTrackable> GetAddedItems() => Added;
+            public IEnumerable<IChangeTrackable> GetModifiedItems() => Modified;
+            public IEnumerable<Guid> GetDeletedItemIds() => DeletedIds;
+
+            public void Clear()
             {
-                if (_model.FullName != value)
+                Added.Clear();
+                Modified.Clear();
+                DeletedIds.Clear();
+            }
+        }
+
+        /// <summary>
+        /// Получает набор изменений для указанного типа.
+        /// </summary>
+        public IChangeset? GetChangesetForType(Type t) => _changesets.GetValueOrDefault(t);
+
+        /// <summary>
+        /// Очищает все отслеженные изменения (вызывается после успешного сохранения).
+        /// </summary>
+        public void ClearAllChanges()
+        {
+            foreach (var changeset in _changesets.Values)
+            {
+                changeset.Clear();
+            }
+        }
+
+        /// <summary>
+        /// Создает ObservableCollection, настраивает отслеживание изменений и возвращает ее.
+        /// </summary>
+        private ObservableCollection<T> RegisterCollection<T>(List<T> initialItems) where T : class, IChangeTrackable, INotifyPropertyChanged
+        {
+            var changeset = new Changeset<T>();
+            _changesets[typeof(T)] = changeset;
+
+            var collection = new ObservableCollection<T>(initialItems);
+
+            // Отслеживание изменений в уже существующих элементах
+            foreach (var item in collection)
+            {
+                item.PropertyChanged += (s, e) => OnItemPropertyChanged(s as T, changeset);
+            }
+
+            collection.CollectionChanged += (s, e) => OnCollectionChanged(e, changeset);
+
+            return collection;
+        }
+
+        private void OnItemPropertyChanged<T>(T? item, Changeset<T> changeset) where T : class, IChangeTrackable, INotifyPropertyChanged
+        {
+            if (item == null || changeset.Added.Contains(item) || changeset.Modified.Contains(item))
+                return;
+
+            changeset.Modified.Add(item);
+        }
+
+        private void OnCollectionChanged<T>(NotifyCollectionChangedEventArgs e, Changeset<T> changeset) where T : class, IChangeTrackable, INotifyPropertyChanged
+        {
+            // Элемент добавлен в коллекцию UI
+            if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems != null)
+            {
+                foreach (T newItem in e.NewItems)
                 {
-                    _model.FullName = value;
-                    OnPropertyChanged(); // Уведомляем UI об изменении
+                    changeset.Added.Add(newItem);
+                    newItem.PropertyChanged += (s, a) => OnItemPropertyChanged(s as T, changeset);
+                }
+            }
+            // Элемент удален из коллекции UI
+            else if (e.Action == NotifyCollectionChangedAction.Remove && e.OldItems != null)
+            {
+                foreach (T oldItem in e.OldItems)
+                {
+                    oldItem.PropertyChanged -= (s, a) => OnItemPropertyChanged(s as T, changeset);
+
+                    // Если он был только что добавлен и еще не сохранен, просто забываем о нем
+                    if (changeset.Added.Contains(oldItem))
+                    {
+                        changeset.Added.Remove(oldItem);
+                    }
+                    // Иначе (если он был в БД), добавляем его ID в список на удаление
+                    else
+                    {
+                        if (!changeset.DeletedIds.Contains(oldItem.Id))
+                        {
+                            changeset.DeletedIds.Add(oldItem.Id);
+                        }
+                        // Также убираем его из списка измененных, если он там был
+                        changeset.Modified.Remove(oldItem);
+                    }
                 }
             }
         }
-        // (Если хотите, можете сделать сеттер для FullName и редактировать его из UI,
-        // но тогда нужно будет вызывать OnPropertyChanged(nameof(FullName)).)
-
-        // ─────────────────────────────────────────────────────────────────────────
-        #region 1. Итоговые результаты успеваемости (AcademicYearResult)
-
-        public ObservableCollection<AcademicYearResult> AcademicResults { get; }
-
-        [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(DeleteAcademicResultCommand))]
-        private AcademicYearResult? _selectedAcademicResult;
-
-        [RelayCommand]
-        private void AddAcademicResult()
-        {
-            // При добавлении новой записи обязательно заполняем TeacherId:
-            string y1 = DateTime.Now.Year.ToString();
-            string y2 = (DateTime.Now.Year + 1).ToString();
-
-            AcademicResults.Add(new AcademicYearResult
-            {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Group = "Группа",
-                AcademicPeriod = $"{y1}-{y2}",
-                Subject = "Новый предмет",
-                AvgSem1 = string.Empty,
-                AvgSem2 = string.Empty,
-                AvgSuccessRate = string.Empty,
-                AvgQualityRate = string.Empty,
-                AvgSuccessRateSem2 = string.Empty,
-                AvgQualityRateSem2 = string.Empty,
-                EntrySouRate = string.Empty,
-                ExitSouRate = string.Empty,
-                Link = string.Empty
-            });
-        }
-
-        [RelayCommand(CanExecute = nameof(CanDeleteAcademicResult))]
-        private void DeleteAcademicResult()
-        {
-            if (SelectedAcademicResult != null)
-                AcademicResults.Remove(SelectedAcademicResult);
-        }
-
-        private bool CanDeleteAcademicResult()
-            => SelectedAcademicResult != null;
 
         #endregion
 
+        #region Check and Fill 
+        /// <summary>
+        /// Снимает подсветку конфликтов со всех записей.
+        /// </summary>
+        public void ClearAllHighlights()
+        {
+            Action<object> clearFlag = (item) =>
+            {
+                if (item is IChangeTrackable trackable)
+                {
+                    var prop = item.GetType().GetProperty("IsConflicting");
+                    if (prop != null && prop.CanWrite)
+                    {
+                        prop.SetValue(item, false);
+                    }
+                }
+            };
+
+            Model.AcademicResults.ForEach(clearFlag);
+            Model.IntermediateAssessments.ForEach(clearFlag);
+            Model.GiaResults.ForEach(clearFlag);
+            Model.DemoExamResults.ForEach(clearFlag);
+            Model.IndependentAssessments.ForEach(clearFlag);
+            Model.SelfDeterminations.ForEach(clearFlag);
+            Model.StudentOlympiads.ForEach(clearFlag);
+            Model.JuryActivities.ForEach(clearFlag);
+            Model.MasterClasses.ForEach(clearFlag);
+            Model.Speeches.ForEach(clearFlag);
+            Model.Publications.ForEach(clearFlag);
+            Model.ExperimentalProjects.ForEach(clearFlag);
+            Model.Mentorships.ForEach(clearFlag);
+            Model.ProgramSupports.ForEach(clearFlag);
+            Model.ProfessionalCompetitions.ForEach(clearFlag);
+        }
+
+        /// <summary>
+        /// Сравнивает текущие данные в ViewModel со свежими данными из БД и подсвечивает различия.
+        /// </summary>
+        public void HighlightConflicts(Teacher freshData)
+        {
+            // Сначала все очищаем
+            ClearAllHighlights();
+
+            // Сравниваем дочерние коллекции
+            CompareAndHighlightCollection(this.AcademicResults, freshData.AcademicResults);
+            CompareAndHighlightCollection(this.IntermediateAssessments, freshData.IntermediateAssessments);
+            CompareAndHighlightCollection(this.GiaResults, freshData.GiaResults);
+            CompareAndHighlightCollection(this.DemoExamResults, freshData.DemoExamResults);
+            CompareAndHighlightCollection(this.IndependentAssessments, freshData.IndependentAssessments);
+            CompareAndHighlightCollection(this.SelfDeterminations, freshData.SelfDeterminations);
+            CompareAndHighlightCollection(this.StudentOlympiads, freshData.StudentOlympiads);
+            CompareAndHighlightCollection(this.JuryActivities, freshData.JuryActivities);
+            CompareAndHighlightCollection(this.MasterClasses, freshData.MasterClasses);
+            CompareAndHighlightCollection(this.Speeches, freshData.Speeches);
+            CompareAndHighlightCollection(this.Publications, freshData.Publications);
+            CompareAndHighlightCollection(this.ExperimentalProjects, freshData.ExperimentalProjects);
+            CompareAndHighlightCollection(this.Mentorships, freshData.Mentorships);
+            CompareAndHighlightCollection(this.ProgramSupports, freshData.ProgramSupports);
+            CompareAndHighlightCollection(this.ProfessionalCompetitions, freshData.ProfessionalCompetitions);
+        }
+
+        private void CompareAndHighlightCollection<T>(ObservableCollection<T> staleCollection, List<T> freshCollection) where T : class, IChangeTrackable
+        {
+            var freshLookup = freshCollection.ToDictionary(i => i.Id);
+
+            foreach (var staleItem in staleCollection)
+            {
+                // Случай 1: Запись была изменена или удалена другим пользователем
+                if (freshLookup.TryGetValue(staleItem.Id, out var freshItem))
+                {
+                    // Если версии не совпадают, значит, запись меняли.
+                    if (staleItem.Version != freshItem.Version)
+                    {
+                        staleItem.IsConflicting = true;
+                    }
+                }
+                // Случай 2: Запись была удалена другим пользователем
+                else
+                {
+                    staleItem.IsConflicting = true;
+                }
+            }
+        }
+        #endregion
+
+
         // ─────────────────────────────────────────────────────────────────────────
-        #region 1A. Промежуточная аттестация (IntermediateAssessment) - ДОБАВЛЕНО
+        #region 1. AcademicYearResult
+        public ObservableCollection<AcademicYearResult> AcademicResults { get; }
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(DeleteAcademicResultCommand))] 
+        private AcademicYearResult? _selectedAcademicResult;
+        [RelayCommand] 
+        private void AddAcademicResult() 
+        { 
+            AcademicResults.Add(new AcademicYearResult 
+            { 
+                TeacherId = _model.Id, 
+                AcademicPeriod = $"{DateTime.Now.Year}-{DateTime.Now.Year + 1}" 
+            }); 
+        }
+        [RelayCommand(CanExecute = nameof(CanDeleteAcademicResult))] 
+        private void DeleteAcademicResult() 
+        { 
+            if (SelectedAcademicResult != null) 
+                AcademicResults.Remove(SelectedAcademicResult); 
+        }
+        private bool CanDeleteAcademicResult() => SelectedAcademicResult != null;
+        #endregion
+
+        // ─────────────────────────────────────────────────────────────────────────
+        #region 1A. IntermediateAssessment
 
         public ObservableCollection<IntermediateAssessment> IntermediateAssessments { get; }
 
@@ -114,19 +283,10 @@ namespace Ynost.ViewModels
         [RelayCommand]
         private void AddIntermediateAssessment()
         {
-            string y1 = DateTime.Now.Year.ToString();
-            string y2 = (DateTime.Now.Year + 1).ToString();
-
             IntermediateAssessments.Add(new IntermediateAssessment
             {
-                Id = Guid.NewGuid(),
                 TeacherId = _model.Id,
-                AcademicYear = $"{y1}-{y2}",
-                Subject = "Новый предмет",
-                AvgScore = string.Empty,
-                Quality = string.Empty,
-                Sou = string.Empty,
-                Link = string.Empty
+                AcademicYear = $"{DateTime.Now.Year}-{DateTime.Now.Year + 1}"
             });
         }
 
@@ -143,7 +303,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 2. Результаты ГИА (GiaResult)
+        #region 2. GiaResult
 
         public ObservableCollection<GiaResult> GiaResults { get; }
 
@@ -156,17 +316,7 @@ namespace Ynost.ViewModels
         {
             GiaResults.Add(new GiaResult
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Subject = "Предмет ГИА",
-                Group = "Группа",
-                TotalParticipants = "0",
-                Count5 = string.Empty,
-                Count4 = string.Empty,
-                Count3 = string.Empty,
-                Count2 = string.Empty,
-                AvgScore = string.Empty,
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -183,7 +333,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 3. Результаты демонстрационного экзамена (DemoExamResult)
+        #region 3. DemoExamResult
 
         public ObservableCollection<DemoExamResult> DemoExamResults { get; }
 
@@ -196,17 +346,7 @@ namespace Ynost.ViewModels
         {
             DemoExamResults.Add(new DemoExamResult
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Subject = "Компетенция ДЭ",
-                Group = "Группа",
-                TotalParticipants = "0",
-                Count5 = string.Empty,
-                Count4 = string.Empty,
-                Count3 = string.Empty,
-                Count2 = string.Empty,
-                AvgScore = string.Empty,
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -223,7 +363,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 4. Независимая оценка (IndependentAssessment)
+        #region 4. IndependentAssessment
 
         public ObservableCollection<IndependentAssessment> IndependentAssessments { get; }
 
@@ -236,18 +376,7 @@ namespace Ynost.ViewModels
         {
             IndependentAssessments.Add(new IndependentAssessment
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                AssessmentName = "Вид оценки",
-                AssessmentDate = DateTime.Now.ToString("dd.MM.yyyy"),
-                ClassSubject = "Класс/Предмет",
-                StudentsTotal = string.Empty,
-                StudentsParticipated = string.Empty,
-                StudentsPassed = string.Empty,
-                Count5 = string.Empty,
-                Count4 = string.Empty,
-                Count3 = string.Empty,
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -264,7 +393,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 5. Деятельность по самоопределению (SelfDeterminationActivity)
+        #region 5. SelfDeterminationActivity
 
         public ObservableCollection<SelfDeterminationActivity> SelfDeterminations { get; }
 
@@ -277,12 +406,7 @@ namespace Ynost.ViewModels
         {
             SelfDeterminations.Add(new SelfDeterminationActivity
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Level = "Уровень",
-                Name = "Мероприятие",
-                Role = "Роль",
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -299,7 +423,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 6. Олимпиады студентов (StudentOlympiad)
+        #region 6. StudentOlympiad
 
         public ObservableCollection<StudentOlympiad> StudentOlympiads { get; }
 
@@ -312,14 +436,7 @@ namespace Ynost.ViewModels
         {
             StudentOlympiads.Add(new StudentOlympiad
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Level = "Уровень",
-                Name = "Название",
-                Form = "Форма",
-                Cadet = "Ученик",
-                Result = "Результат",
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -336,7 +453,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 7. Работа в жюри (JuryActivity)
+        #region 7. JuryActivity
 
         public ObservableCollection<JuryActivity> JuryActivities { get; }
 
@@ -349,12 +466,7 @@ namespace Ynost.ViewModels
         {
             JuryActivities.Add(new JuryActivity
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Level = "Уровень",
-                Name = "Событие",
-                EventDate = DateTime.Now.ToString("dd.MM.yyyy"),
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -371,7 +483,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 8. Мастер-классы (MasterClass)
+        #region 8. MasterClass
 
         public ObservableCollection<MasterClass> MasterClasses { get; }
 
@@ -384,12 +496,7 @@ namespace Ynost.ViewModels
         {
             MasterClasses.Add(new MasterClass
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Level = "Уровень",
-                Name = "Тема",
-                EventDate = DateTime.Now.ToString("dd.MM.yyyy"),
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -406,7 +513,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 9. Выступления (Speech)
+        #region 9. Speech
 
         public ObservableCollection<Speech> Speeches { get; }
 
@@ -419,12 +526,7 @@ namespace Ynost.ViewModels
         {
             Speeches.Add(new Speech
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Level = "Уровень",
-                Name = "Тема",
-                EventDate = DateTime.Now.ToString("dd.MM.yyyy"),
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -441,7 +543,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 10. Публикации (Publication)
+        #region 10. Publication
 
         public ObservableCollection<Publication> Publications { get; }
 
@@ -454,12 +556,7 @@ namespace Ynost.ViewModels
         {
             Publications.Add(new Publication
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Level = "Уровень",
-                Title = "Название",
-                Date = DateTime.Now.ToString("dd.MM.yyyy"), // ← раньше PubDate, теперь Date
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -476,7 +573,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 11. Экспериментальные проекты (ExperimentalProject)
+        #region 11. ExperimentalProject
 
         public ObservableCollection<ExperimentalProject> ExperimentalProjects { get; }
 
@@ -489,11 +586,7 @@ namespace Ynost.ViewModels
         {
             ExperimentalProjects.Add(new ExperimentalProject
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Name = "Название проекта",
-                Date = DateTime.Now.ToString("dd.MM.yyyy"), // ← раньше ProjDate, теперь Date
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -510,7 +603,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 12. Наставничество (Mentorship)
+        #region 12. Mentorship
 
         public ObservableCollection<Mentorship> Mentorships { get; }
 
@@ -523,12 +616,7 @@ namespace Ynost.ViewModels
         {
             Mentorships.Add(new Mentorship
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Trainee = "Наставляемый",
-                OrderNo = "Приказ",                                 // ← раньше Order, теперь OrderNo
-                OrderDate = DateTime.Now.ToString("dd.MM.yyyy"),
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -545,7 +633,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 13. Программно-методическое сопровождение (ProgramMethodSupport)
+        #region 13. ProgramMethodSupport
 
         public ObservableCollection<ProgramMethodSupport> ProgramSupports { get; }
 
@@ -558,11 +646,7 @@ namespace Ynost.ViewModels
         {
             ProgramSupports.Add(new ProgramMethodSupport
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                ProgramName = "Название программы",
-                HasControlMaterials = false,
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -579,7 +663,7 @@ namespace Ynost.ViewModels
         #endregion
 
         // ─────────────────────────────────────────────────────────────────────────
-        #region 14. Профессиональные конкурсы (ProfessionalCompetition)
+        #region 14. ProfessionalCompetition
 
         public ObservableCollection<ProfessionalCompetition> ProfessionalCompetitions { get; }
 
@@ -592,13 +676,7 @@ namespace Ynost.ViewModels
         {
             ProfessionalCompetitions.Add(new ProfessionalCompetition
             {
-                Id = Guid.NewGuid(),
-                TeacherId = _model.Id,
-                Level = "Уровень",
-                Name = "Конкурс",
-                Achievement = "Достижение",
-                EventDate = DateTime.Now.ToString("dd.MM.yyyy"),
-                Link = string.Empty
+                TeacherId = _model.Id
             });
         }
 
@@ -614,7 +692,6 @@ namespace Ynost.ViewModels
 
         #endregion
 
-        // ─────────────────────────────────────────────────────────────────────────
         // 5) SyncToModel — копирует всё из ViewModel обратно в _model перед Save:
         public void SyncToModel()
         {

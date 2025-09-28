@@ -1,19 +1,36 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Ynost.Models;
+using System;
 
 namespace Ynost.Models
 {
     /// <summary>
     /// Модель для хранения результатов промежуточной аттестации.
     /// </summary>
-    public class IntermediateAssessment
+    public partial class IntermediateAssessment : ObservableObject, IChangeTrackable
     {
-        public Guid Id { get; set; } = Guid.NewGuid();
-        public Guid TeacherId { get; set; }
-        public string AcademicYear { get; set; } = string.Empty; // Учебный год
-        public string Subject { get; set; } = string.Empty;      // Предмет
-        public string AvgScore { get; set; } = string.Empty;     // СР БАЛ
-        public string Quality { get; set; } = string.Empty;      // КАЧЕСТВО
-        public string Sou { get; set; } = string.Empty;          // СОУ
-        public string Link { get; set; } = string.Empty;         // Ссылка на документ
+        [ObservableProperty]
+        private Guid _id = Guid.NewGuid();
+        [ObservableProperty]
+        private Guid _teacherId;
+        [ObservableProperty]
+        private string _academicYear = string.Empty;
+        [ObservableProperty]
+        private string _subject = string.Empty;
+        [ObservableProperty]
+        private string _avgScore = string.Empty;
+        [ObservableProperty]
+        private string _quality = string.Empty;
+        [ObservableProperty]
+        private string _sou = string.Empty;
+        [ObservableProperty]
+        private string _link = string.Empty;
+
+        [ObservableProperty]
+        private int _version = 1;
+
+        [ObservableProperty]
+        [System.Text.Json.Serialization.JsonIgnore]
+        private bool _isConflicting;
     }
 }

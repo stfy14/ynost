@@ -209,6 +209,10 @@ namespace Ynost.Models
         [ObservableProperty]
         private int _version = 1;
 
+        [ObservableProperty]
+        [System.Text.Json.Serialization.JsonIgnore]
+        private bool _isConflicting;
+
         private decimal? TryParseValue(string? value)
         {
             if (string.IsNullOrWhiteSpace(value))
