@@ -42,10 +42,25 @@ namespace Ynost
         }
         private void OnTeachersButton_Click(object sender, RoutedEventArgs e)
         {
-            // Создаём и показываем окно мониторинга учителей
-            var win = new TeacherMonitoringWindow();
-            win.Owner = this;    // чтобы окно было дочерним
-            win.Show();          // или ShowDialog() для модального
+            // Проверяем, авторизован ли пользователь
+            if (!_vm.IsLoggedIn)
+            {
+                // Если нет — показываем информационное окно
+                MessageBox.Show(
+                    "Сначала войдите в аккаунт",
+                    "Требуется авторизация",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+            else
+            {
+                // Если да — создаём и показываем окно мониторинга
+                var win = new TeacherMonitoringWindow
+                {
+                    Owner = this // Чтобы окно было дочерним
+                };
+                win.Show();
+            }
         }
         // ------------------------------------------------------------------
         #region Глобальные обработчики ошибок

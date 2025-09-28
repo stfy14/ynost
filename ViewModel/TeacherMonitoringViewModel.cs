@@ -129,7 +129,7 @@ namespace Ynost.ViewModels
             _db = db ?? throw new ArgumentNullException(nameof(db));
 
             LoadCommand = new AsyncRelayCommand(LoadAllAsync);
-            SaveCommand = new AsyncRelayCommand(SaveAsync, () => SelectedTeach != null);
+            SaveCommand = new AsyncRelayCommand(SaveAsync, () => SelectedTeach != null && AuthService.CanEdit);
             SelectTeacherCommand = new RelayCommand<Teach?>(t => SelectedTeach = t);
             ReloadMonitoringCommand = new RelayCommand(async () => await ReloadAsync(), () => SelectedTeach != null);
             AddTeachCommand = new AsyncRelayCommand(ExecuteAddTeach);

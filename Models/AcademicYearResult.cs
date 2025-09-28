@@ -4,7 +4,7 @@ using System.Globalization;
 
 namespace Ynost.Models
 {
-    public partial class AcademicYearResult : ObservableObject
+    public partial class AcademicYearResult : ObservableObject, IChangeTrackable
     {
         [ObservableProperty]
         private Guid _id = Guid.NewGuid();
@@ -205,6 +205,9 @@ namespace Ynost.Models
 
         [ObservableProperty]
         private string _link = string.Empty;
+
+        [ObservableProperty]
+        private int _version = 1;
 
         private decimal? TryParseValue(string? value)
         {

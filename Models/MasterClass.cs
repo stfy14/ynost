@@ -1,8 +1,9 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using System;
 
 namespace Ynost.Models;
 
-public class MasterClass
+public class MasterClass: ObservableObject
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TeacherId { get; set; }        // ← добавить

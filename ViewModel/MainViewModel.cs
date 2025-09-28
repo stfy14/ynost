@@ -108,14 +108,18 @@ namespace Ynost.ViewModels
 
                 if (savedUser == "admin" && savedPass == "admin")
                 {
-                    IsLoggedIn = true; CurrentUserRole = LoginResultRole.Editor;
+                    IsLoggedIn = true; 
+                    CurrentUserRole = LoginResultRole.Editor;
+                    AuthService.CurrentUserRole = CurrentUserRole;
                     StatusText = $"Автоматический вход как {savedUser}. Загрузка данных...";
                     ConnectionStatusText = StatusText;
                     _ = LoadDataAsync();
                 }
                 else if (savedUser == "view" && savedPass == "view")
                 {
-                    IsLoggedIn = true; CurrentUserRole = LoginResultRole.Viewer;
+                    IsLoggedIn = true; 
+                    CurrentUserRole = LoginResultRole.Viewer;
+                    AuthService.CurrentUserRole = CurrentUserRole;
                     StatusText = $"Автоматический вход как {savedUser}. Загрузка данных...";
                     ConnectionStatusText = StatusText;
                     _ = LoadDataAsync();
@@ -151,7 +155,9 @@ namespace Ynost.ViewModels
                 var result = MessageBox.Show("Вы точно хотите выйти из аккаунта?", "Подтверждение выхода", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (result == MessageBoxResult.Yes)
                 {
-                    IsLoggedIn = false; CurrentUserRole = LoginResultRole.None;
+                    IsLoggedIn = false; 
+                    CurrentUserRole = LoginResultRole.None;
+                    AuthService.CurrentUserRole = LoginResultRole.None;
                     IsDatabaseConnected = false; // Сбрасываем при выходе
                     Teachers.Clear();
                     StatusText = "Вы вышли из системы. Войдите для доступа к данным.";
@@ -166,7 +172,9 @@ namespace Ynost.ViewModels
                 bool? dialogResult = loginWindow.ShowDialog();
                 if (dialogResult == true && loginVmContext != null && loginVmContext.LoginSuccessful)
                 {
-                    IsLoggedIn = true; CurrentUserRole = loginVmContext.AuthenticatedUserRole;
+                    IsLoggedIn = true; 
+                    CurrentUserRole = loginVmContext.AuthenticatedUserRole;
+                    AuthService.CurrentUserRole = CurrentUserRole;
                     IsDatabaseConnected = false; // Сбрасываем перед загрузкой
                     IsUsingCache = false;
                     _ = LoadDataAsync();
