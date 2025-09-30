@@ -190,7 +190,7 @@ namespace Ynost.ViewModels
 
         private bool CanRetryConnection()
         {
-            return IsLoggedIn && !IsDatabaseConnected && !IsLoading && !IsSavingData && !RetryConnectionCommand.IsRunning;
+            return IsLoggedIn && !IsLoading && !IsSavingData && !RetryConnectionCommand.IsRunning;
         }
 
         private async Task ExecuteSaveChanges()
@@ -237,9 +237,7 @@ namespace Ynost.ViewModels
                 string title = "Конфликт сохранения";
                 string message = "Не удалось сохранить ваши изменения.\n\n" +
                                  "Причина: Данные были обновлены другим пользователем, пока вы их редактировали.\n" +
-                                 "Конфликтные записи подсвечены красным.\n\n" +
-                                 "Посдказка: \n" + 
-                                 "Вы можете открыть 2 программы одновременно и сравнить ваши изменения и свои.";
+                                 "Конфликтные записи подсвечены красным.\n\n";
 
                 MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Warning);
 
@@ -290,6 +288,31 @@ namespace Ynost.ViewModels
 
         public async Task LoadDataAsync()
         {
+            // --- НАЧАЛО НОВЫХ ИЗМЕНЕНИЙ ---
+
+            // Шаг 1: Проверяем, нужно ли показывать диалоговое окно.
+            // Оно появляется, только если соединение с БД уже есть (т.е. это "Обновление", а не "Повтор").
+            if (IsDatabaseConnected && SelectedTeacher != null && SelectedTeacher.HasChanges)
+            {
+                var result = MessageBox.Show(
+                    "Вы уверены, что хотите обновить данные?\n" +
+                    "Все несохраненные изменения будут потеряны.",
+                    "Подтверждение обновления",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+            }
+
+            // --- КОНЕЦ НОВЫХ ИЗМЕНЕНИЙ ---
+
+            // Дальнейший код выполняется, только если:
+            // 1. Соединения с БД не было (и окно не показывалось).
+            // 2. Соединение было, и пользователь нажал "Да".
+
             if (!IsLoggedIn)
             {
                 Teachers.Clear(); IsDatabaseConnected = false; UpdateCanEditDataProperty();
@@ -319,10 +342,10 @@ namespace Ynost.ViewModels
             }
             else
             {
-                await Application.Current.Dispatcher.InvokeAsync(async () => // Сделали лямбду асинхронной
+                await Application.Current.Dispatcher.InvokeAsync(async () =>
                 {
                     IsDatabaseConnected = false;
-                    List<Teacher>? cachedModels = await _db.LoadFromCacheAsync(); // await здесь
+                    List<Teacher>? cachedModels = await _db.LoadFromCacheAsync();
                     if (cachedModels != null && cachedModels.Count > 0)
                     {
                         UpdateTeachersCollection(cachedModels); IsUsingCache = true;
@@ -339,9 +362,8 @@ namespace Ynost.ViewModels
 
             IsLoading = false;
             UpdateCanEditDataProperty();
-            // Обновляем CanExecute команд явно, так как IsLoading изменился
             ((AsyncRelayCommand)RetryConnectionCommand).NotifyCanExecuteChanged();
-            ((AsyncRelayCommand)SaveChangesCommand).NotifyCanExecuteChanged(); // SaveChangesCommand тоже может зависеть от IsLoading косвенно через CanEditData
+            ((AsyncRelayCommand)SaveChangesCommand).NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(ShowLoginPrompt));
             OnPropertyChanged(nameof(ShowDataContent));
         }

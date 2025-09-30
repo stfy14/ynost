@@ -120,6 +120,7 @@ namespace Ynost.ViewModels
                 return;
 
             changeset.Modified.Add(item);
+            OnPropertyChanged(nameof(HasChanges)); // <-- ДОБАВЛЕНО: Уведомляем, что появились изменения
         }
 
         private void OnCollectionChanged<T>(NotifyCollectionChangedEventArgs e, Changeset<T> changeset) where T : class, IChangeTrackable, INotifyPropertyChanged
@@ -157,6 +158,7 @@ namespace Ynost.ViewModels
                     }
                 }
             }
+            OnPropertyChanged(nameof(HasChanges));
         }
 
         #endregion
@@ -245,6 +247,21 @@ namespace Ynost.ViewModels
             }
         }
         #endregion
+
+        /// <summary>
+        /// Возвращает true, если для этого преподавателя есть несохраненные изменения.
+        /// </summary>
+        public bool HasChanges
+        {
+            get
+            {
+                // Проверяем все наборы изменений. Если хотя бы в одном есть запись, возвращаем true.
+                return _changesets.Values.Any(changeset =>
+                    changeset.GetAddedItems().Any() ||
+                    changeset.GetModifiedItems().Any() ||
+                    changeset.GetDeletedItemIds().Any());
+            }
+        }
 
 
         // ─────────────────────────────────────────────────────────────────────────

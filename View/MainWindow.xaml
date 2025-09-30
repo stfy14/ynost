@@ -422,7 +422,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="{Binding ConnectionStatusText}" Padding="5" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                <Button Grid.Column="1" Content="Повторить попытку" Margin="0,0,5,0" Padding="10,3" VerticalAlignment="Center"
+                <Button Grid.Column="1" Content="Обновить БД" Margin="0,0,5,0" Padding="10,3" VerticalAlignment="Center"
                         Command="{Binding RetryConnectionCommand}">
                     <Button.Style>
                         <Style TargetType="Button">
@@ -431,7 +431,6 @@
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding IsLoggedIn}" Value="True"/>
-                                        <Condition Binding="{Binding IsDatabaseConnected}" Value="False"/>
                                         <Condition Binding="{Binding IsLoading}" Value="False"/>
                                         <Condition Binding="{Binding IsSavingData}" Value="False"/>
                                     </MultiDataTrigger.Conditions>
