@@ -163,16 +163,23 @@ namespace Ynost.ViewModels
             DeleteBoardCommand = new RelayCommand(() =>
             {
                 if (SelectedBoard == null) return;
-                // Находим родительскую группу (год) и удаляем предмет из нее
-                foreach (var yearGroup in YearlyBoards)
+
+                // 1. Ищем группу (год), которой принадлежит выбранный предмет
+                var parentGroup = YearlyBoards.FirstOrDefault(g => g.SubjectBoards.Contains(SelectedBoard));
+
+                if (parentGroup != null)
                 {
-                    // ObservableCollection поддерживает метод Contains и Remove, всё будет работать
-                    if (yearGroup.SubjectBoards.Contains(SelectedBoard))
+                    // 2. Удаляем предмет из этой группы
+                    parentGroup.SubjectBoards.Remove(SelectedBoard);
+
+                    // 3. ПРОВЕРКА: Если в группе не осталось предметов, удаляем саму группу (год/дату)
+                    if (parentGroup.SubjectBoards.Count == 0)
                     {
-                        yearGroup.SubjectBoards.Remove(SelectedBoard);
-                        SelectedBoard = null;
-                        break;
+                        YearlyBoards.Remove(parentGroup);
                     }
+
+                    // Сбрасываем выделение
+                    SelectedBoard = null;
                 }
             }, () => SelectedBoard != null);
 
