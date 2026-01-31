@@ -45,8 +45,14 @@
 
                         <TextBlock Grid.Column="0" Text="Учителя" FontWeight="Bold" VerticalAlignment="Center"/>
 
-                        <Button Grid.Column="1" Content="Экспорт в Excel" Padding="8,2" VerticalAlignment="Center"
-                                Command="{Binding ExportToExcelCommand}"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Content="📥 Импорт" Padding="8,2" Margin="0,0,5,0"
+            Command="{Binding ImportFromExcelCommand}"
+            ToolTip="Загрузить данные из Excel (заменит текущие данные на экране)"/>
+
+                            <Button Content="📊 Экспорт" Padding="8,2"
+            Command="{Binding ExportToExcelCommand}"/>
+                        </StackPanel>
                     </Grid>
                 </Border>
 

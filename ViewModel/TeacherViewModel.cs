@@ -7,6 +7,7 @@ using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Ynost.Models;
+using Ynost.Services;
 
 namespace Ynost.ViewModels
 {
@@ -276,8 +277,8 @@ namespace Ynost.ViewModels
         { 
             AcademicResults.Add(new AcademicYearResult 
             { 
-                TeacherId = _model.Id, 
-                AcademicPeriod = $"{DateTime.Now.Year}-{DateTime.Now.Year + 1}" 
+                TeacherId = _model.Id,
+                AcademicPeriod = DateHelper.GetCurrentAcademicYear()
             }); 
         }
         [RelayCommand(CanExecute = nameof(CanDeleteAcademicResult))] 
@@ -304,7 +305,7 @@ namespace Ynost.ViewModels
             IntermediateAssessments.Add(new IntermediateAssessment
             {
                 TeacherId = _model.Id,
-                AcademicYear = $"{DateTime.Now.Year}-{DateTime.Now.Year + 1}"
+                AcademicYear = DateHelper.GetCurrentAcademicYear()
             });
         }
 

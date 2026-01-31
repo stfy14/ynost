@@ -14,16 +14,15 @@ namespace Ynost.Services
     {
         private const string SheetUrl = "https://docs.google.com/spreadsheets/d/1yj4BobZpipi1TOQSLFWiGmX6kqXknwDF75O-cFpyupw/export?format=xlsx&gid=1821723602";
 
-        // === НАСТРОЙКИ КООРДИНАТ ===
-        private const int ROW_HEADER_GROUPS = 2;
-        private const int COL_TEACHER = 1; // A - ФИО
-        private const int COL_SUBJECT = 2; // B - Предмет
-        private const int COL_METRIC = 3; // C - Вид контроля
-        private const int COL_DATA_START = 4; // D
-        private const string CURRENT_YEAR = "2024-2025";
+        // === НАСТРОЙКИ КООРДИНАТ (по скриншоту) ===
+        private const int ROW_DATA_START = 3;      // Данные начинаются с 3-й строки (после шапки)
+        private const int COL_TEACHER = 1;         // A - ФИО преподавателя
+        private const int COL_SUBJECT = 2;         // B - Предмет
+        private const int COL_METRIC = 3;          // C - Вид контроля
+        private const int COL_AGGREGATE_VALUE = 51;// AY - "Средний СОУ, %"
 
         /// <summary>
-        /// 1. Скачивает файл в память (чтобы не качать дважды).
+        /// Скачивает файл Google Sheets в виде массива байтов.
         /// </summary>
         public async Task<byte[]> DownloadSheetAsync()
         {
@@ -40,11 +39,13 @@ namespace Ynost.Services
         }
 
         /// <summary>
-        /// 2. Ищет все уникальные полные имена, содержащие запрос query.
+        /// Ищет в скачанном файле все уникальные полные имена, содержащие поисковый запрос.
         /// </summary>
         public List<string> FindCandidates(byte[] fileData, string query)
         {
             var candidates = new HashSet<string>();
+            if (fileData == null) return new List<string>();
+
             try
             {
                 using var stream = new MemoryStream(fileData);
@@ -52,7 +53,7 @@ namespace Ynost.Services
                 var sheet = workbook.Worksheets.FirstOrDefault();
                 if (sheet == null) return new List<string>();
 
-                var rows = sheet.RowsUsed(r => r.RowNumber() > ROW_HEADER_GROUPS);
+                var rows = sheet.RowsUsed(r => r.RowNumber() >= ROW_DATA_START);
                 string currentTeacher = "";
 
                 foreach (var row in rows)
@@ -82,10 +83,12 @@ namespace Ynost.Services
         }
 
         /// <summary>
-        /// 3. Парсит данные строго для конкретного полного имени.
+        /// Парсит данные для конкретного преподавателя, используя значения из итоговой колонки AY.
         /// </summary>
         public bool ParseDataForExactName(byte[] fileData, TeacherViewModel teacherVm, string exactFullName)
         {
+            if (fileData == null) return false;
+
             try
             {
                 using var stream = new MemoryStream(fileData);
@@ -93,89 +96,88 @@ namespace Ynost.Services
                 var sheet = workbook.Worksheets.FirstOrDefault();
                 if (sheet == null) return false;
 
-                // 1. Читаем шапку групп
-                var groupColumns = new Dictionary<int, string>();
-                var headerRow = sheet.Row(ROW_HEADER_GROUPS);
-                for (int c = COL_DATA_START; c <= 200; c++)
-                {
-                    string grName = headerRow.Cell(c).GetString().Trim();
-                    if (string.IsNullOrWhiteSpace(grName))
-                    {
-                        if (string.IsNullOrWhiteSpace(headerRow.Cell(c + 1).GetString())) break;
-                        continue;
-                    }
-                    groupColumns[c] = grName;
-                }
-
-                // 2. Ищем данные
+                // Буфер для накопления данных по каждому предмету
                 var buffer = new Dictionary<string, AcademicYearResult>();
+
                 string currentTeacher = "";
                 string currentSubject = "";
 
-                var rows = sheet.RowsUsed(r => r.RowNumber() > ROW_HEADER_GROUPS);
-                bool dataFound = false;
+                var rows = sheet.RowsUsed(r => r.RowNumber() >= ROW_DATA_START);
+                bool teacherFoundInSheet = false;
 
                 foreach (var row in rows)
                 {
+                    // Обновляем текущего преподавателя (логика для объединенных ячеек)
                     string rowTeacher = row.Cell(COL_TEACHER).GetString().Trim();
                     if (!string.IsNullOrWhiteSpace(rowTeacher)) currentTeacher = rowTeacher;
 
-                    // === СТРОГОЕ СРАВНЕНИЕ ===
-                    // Мы парсим только если текущее имя в Excel ТОЧНО совпадает с выбранным
+                    // Парсим только если текущее имя в Excel ТОЧНО совпадает с выбранным
                     if (string.IsNullOrEmpty(currentTeacher) ||
                         !string.Equals(currentTeacher, exactFullName, StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
                     }
 
-                    dataFound = true; // Мы нашли преподавателя, даже если оценок нет
+                    teacherFoundInSheet = true; // Мы нашли преподавателя
 
+                    // Обновляем текущий предмет
                     string rowSubject = row.Cell(COL_SUBJECT).GetString().Trim();
                     if (!string.IsNullOrWhiteSpace(rowSubject)) currentSubject = rowSubject;
                     if (string.IsNullOrEmpty(currentSubject)) continue;
 
-                    string metricName = row.Cell(COL_METRIC).GetString().Trim().ToLower();
-
-                    foreach (var kvp in groupColumns)
+                    // Получаем или создаем объект AcademicYearResult для текущего предмета
+                    if (!buffer.ContainsKey(currentSubject))
                     {
-                        string cellValue = row.Cell(kvp.Key).GetString().Trim();
-                        if (string.IsNullOrWhiteSpace(cellValue)) continue;
-
-                        string key = $"{currentSubject}_{kvp.Value}"; // Предмет_Группа
-                        if (!buffer.ContainsKey(key))
+                        buffer[currentSubject] = new AcademicYearResult
                         {
-                            buffer[key] = new AcademicYearResult
-                            {
-                                TeacherId = teacherVm.Id,
-                                AcademicPeriod = CURRENT_YEAR,
-                                Subject = currentSubject,
-                                Group = kvp.Value
-                            };
-                        }
-
-                        var res = buffer[key];
-                        // Заполнение полей
-                        if (metricName.Contains("средний балл")) res.AvgSem1 = cellValue;
-                        else if (metricName.Contains("успеваемость")) res.AvgSuccessRate = cellValue;
-                        else if (metricName.Contains("кач. зн") || metricName.Contains("качество")) res.AvgQualityRate = cellValue;
-                        else if (metricName.Contains("входной")) res.EntrySouRate = cellValue;
-                        else if (metricName.Contains("итоговый")) res.ExitSouRate = cellValue;
-                        else if (metricName.Contains("соу (%)")) res.Intermediate = cellValue;
+                            TeacherId = teacherVm.Id,
+                            AcademicPeriod = DateHelper.GetCurrentAcademicYear(),
+                            Subject = currentSubject,
+                            Group = "" // Группа не используется в этой логике парсинга
+                        };
                     }
+                    var resultForSubject = buffer[currentSubject];
+
+                    // Читаем метрику (колонка C) и значение (колонка AY)
+                    string metricName = row.Cell(COL_METRIC).GetString().Trim().ToLower();
+                    string metricValue = row.Cell(COL_AGGREGATE_VALUE).GetString().Trim();
+
+                    // Пропускаем пустые значения и ошибки Excel типа #DIV/0!
+                    if (string.IsNullOrWhiteSpace(metricValue) || metricValue.StartsWith("#"))
+                    {
+                        continue;
+                    }
+
+                    // Сопоставляем название метрики со свойством в нашей модели
+                    if (metricName.Contains("средний балл"))
+                        resultForSubject.AvgSem1 = metricValue;
+                    else if (metricName.Contains("успеваемость"))
+                        resultForSubject.AvgSuccessRate = metricValue;
+                    else if (metricName.Contains("% кач. зн. по предмету"))
+                        resultForSubject.AvgQualityRate = metricValue;
+                    else if (metricName.Contains("соу (%) по предмету"))
+                        resultForSubject.Intermediate = metricValue;
+                    else if (metricName.Contains("входной"))
+                        resultForSubject.EntrySouRate = metricValue;
+                    else if (metricName.Contains("итоговый"))
+                        resultForSubject.ExitSouRate = metricValue;
                 }
 
+                // После прохода по всем строкам, переносим данные из буфера в ViewModel
                 if (buffer.Count > 0)
                 {
-                    foreach (var item in buffer.Values)
-                        teacherVm.AcademicResults.Add(item);
-                    return true;
+                    foreach (var finalResult in buffer.Values)
+                    {
+                        teacherVm.AcademicResults.Add(finalResult);
+                    }
+                    return true; // Данные успешно распарсены
                 }
 
-                return dataFound; // Вернем true, если учитель был найден в таблице (даже если оценок нет)
+                return teacherFoundInSheet; // Возвращаем true, если учитель был найден, даже если данных не было
             }
             catch (Exception ex)
             {
-                Logger.Write(ex, "PARSE-DATA");
+                Logger.Write(ex, "PARSE-DATA-COLUMN-AY");
                 return false;
             }
         }

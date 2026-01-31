@@ -111,6 +111,7 @@ namespace Ynost.ViewModels
         public IRelayCommand DeleteProgramSupportCommand { get; private set; } = null!;
         public IRelayCommand AddProfessionalCompetitionCommand { get; private set; } = null!;
         public IRelayCommand DeleteProfessionalCompetitionCommand { get; private set; } = null!;
+        public IAsyncRelayCommand ImportFromExcelCommand { get; }
         #endregion
 
         #region 1.1 Итоги по предметам (Boards)
@@ -135,6 +136,7 @@ namespace Ynost.ViewModels
             AddTeachCommand = new AsyncRelayCommand(ExecuteAddTeach);
             DeleteTeachCommand = new AsyncRelayCommand(ExecuteDeleteTeach, () => SelectedTeach != null);
             ExportToExcelCommand = new AsyncRelayCommand(ExportMonitoringDataToExcel, () => SelectedTeach != null);
+            ImportFromExcelCommand = new AsyncRelayCommand(ImportDataFromExcel, () => SelectedTeach != null);
 
             AddBoardCommand = new RelayCommand(() => Boards.Add(new SubjectBoard()));
             DeleteBoardCommand = new RelayCommand(() =>
@@ -165,6 +167,7 @@ namespace Ynost.ViewModels
         partial void OnSelectedTeachChanged(Teach? oldValue, Teach? newValue)
         {
             _ = ReloadAsync();
+            ImportFromExcelCommand.NotifyCanExecuteChanged(); // <--- Добавить это
         }
 
         partial void OnSelectedAcademicYearChanged(AcademicYearResultTeacher? oldValue, AcademicYearResultTeacher? newValue)
@@ -368,6 +371,54 @@ namespace Ynost.ViewModels
                 {
                     Log($"❌ Ошибка при экспорте: {ex.Message}");
                     MessageBox.Show($"Произошла ошибка при экспорте: {ex.Message}", "Ошибка экспорта", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private async Task ImportDataFromExcel()
+        {
+            if (SelectedTeach == null) return;
+
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Excel Files|*.xlsm;*.xlsx",
+                Title = "Импорт данных мониторинга"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                Log("Начинаю импорт данных из Excel...");
+                try
+                {
+                    var importService = new ExcelImportService();
+
+                    // Выполняем импорт в UI потоке или через Task.Run, но с осторожностью к ObservableCollection
+                    // Т.к. ClosedXML грузит CPU, лучше в Task, но обновление коллекций должно быть в UI.
+                    // В данном сервисе мы наполняем коллекции переданной VM. Если делать это из фона, нужен Dispatcher.
+                    // Проще всего для начала сделать синхронно (или обернуть в Task с Dispatcher внутри сервиса, но сервис не должен знать о UI).
+
+                    // Вариант: Чтение в структуру данных, потом применение к VM. 
+                    // Но для простоты запустим в Task и используем Application.Current.Dispatcher внутри метода, если нужно, 
+                    // НО ObservableCollection в WPF 4.5+ позволяет обновление из других потоков если включить BindingOperations.EnableCollectionSynchronization.
+                    // Самый надежный способ без усложнений:
+
+                    await Task.Run(() =>
+                    {
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            // Запускаем импорт прямо внутри Invoke, чтобы безопасно менять коллекции
+                            importService.ImportMonitoringData(dialog.FileName, this);
+                        });
+                    });
+
+                    Log("✔ Импорт успешно завершен. Не забудьте нажать 'Сохранить'!");
+                    MessageBox.Show("Данные загружены из файла.\n\nВНИМАНИЕ: Данные пока только на экране.\nНажмите 'Сохранить', чтобы записать их в базу данных.",
+                        "Импорт завершен", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    Log($"❌ Ошибка при импорте: {ex.Message}");
+                    MessageBox.Show($"Произошла ошибка при импорте: {ex.Message}", "Ошибка импорта", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }

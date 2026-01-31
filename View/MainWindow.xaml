@@ -5,393 +5,462 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Ynost.Converters" 
         mc:Ignorable="d"
-        Title="Ynost" Height="800" Width="1380"
+        Title="Ynost Portfolio Manager" Height="850" Width="1400"
         Loaded="MainWindow_Loaded"
-        FontSize="16">
+        FontSize="14"
+        WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
         <Style x:Key="WrappedTextBlockCellStyle" TargetType="TextBlock">
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="4,2"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
         <Style x:Key="EditingTextBoxStyle" TargetType="TextBox">
             <Setter Property="AcceptsReturn" Value="True"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
-            <Setter Property="SpellCheck.IsEnabled" Value="True"/>
         </Style>
+
         <BooleanToVisibilityConverter x:Key="BoolToVisConverter"/>
         <local:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
         <local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisConverter"/>
 
+        <!-- Стиль для подсветки конфликтов версий (красный фон) -->
         <Style TargetType="DataGridCell">
             <Style.Triggers>
-                <!-- DataContext ячейки - это вся строка (например, AcademicYearResult) -->
                 <DataTrigger Binding="{Binding IsConflicting}" Value="True">
                     <Setter Property="Background" Value="#FFB6C1" />
-                    <!-- Светло-розовый цвет -->
-                    <Setter Property="ToolTip" Value="Эти данные были изменены или удалены другим пользователем!" />
+                    <Setter Property="ToolTip" Value="Данные были изменены другим пользователем! Перезагрузите список." />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
     </Window.Resources>
 
+    <!-- ГЛАВНАЯ СЕТКА ОКНА -->
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- (0) Верхняя панель (Toolbar) -->
             <RowDefinition Height="*"/>
+            <!-- (1) Основной контент -->
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
+            <!-- (2) Нижняя панель (Status) -->
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0">
+        <!-- (0) ВЕРХНЯЯ ПАНЕЛЬ ИНСТРУМЕНТОВ -->
+        <Border Grid.Row="0" Background="#E8EDF9" BorderBrush="#B0B0B0" BorderThickness="0,0,0,1" Padding="10,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Заголовок -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Преподаватели" FontWeight="Bold" FontSize="18" Foreground="#333" Margin="0,0,20,0"/>
+                </StackPanel>
+
+                <!-- Кнопки действий -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <!-- 1. НОВАЯ КНОПКА (Красная): Валидация ВСЕХ -->
+                    <Button Command="{Binding ValidateAllTeachersCommand}" 
+                            Margin="0,0,10,0" Padding="10,5"
+                            Background="#FFEBEE" BorderBrush="#EF5350">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚡ Заполнить с Sheets (ВСЕХ)" FontWeight="SemiBold" Foreground="#C62828"/>
+                        </StackPanel>
+                        <Button.ToolTip>
+                            <ToolTip Content="Скачать Google Sheet и заполнить пропуски для ВСЕХ преподавателей в списке."/>
+                        </Button.ToolTip>
+                    </Button>
+
+                    <!-- 2. СТАРАЯ КНОПКА (Желтая): Валидация ТЕКУЩЕГО -->
+                    <Button Command="{Binding ValidateAndFillDataCommand}" 
+                            Margin="0,0,10,0" Padding="10,5"
+                            Background="#FFF8E1" BorderBrush="#FFD54F">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📥 Заполнить с Sheets" FontWeight="SemiBold" Foreground="#333"/>
+                        </StackPanel>
+                        <Button.ToolTip>
+                            <ToolTip Content="Заполнить пропуски только для ВЫБРАННОГО преподавателя."/>
+                        </Button.ToolTip>
+                    </Button>
+
+                    <Button Command="{Binding ImportFromExcelCommand}" 
+                    Margin="0,0,15,0" Padding="10,5" 
+                    Background="White" BorderBrush="#FF969696">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📥 Импорт Excel" FontWeight="SemiBold"/>
+                        </StackPanel>
+                        <Button.ToolTip>
+                            <ToolTip Content="Импортировать данные из файла .xlsm в таблицу"/>
+                        </Button.ToolTip>
+                    </Button>
+
+                    <!-- Кнопка ЭКСПОРТА -->
+                    <Button Command="{Binding ExportToExcelCommand}" Padding="15,5" Background="White" BorderBrush="#FF969696">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📊 Экспорт в Excel" FontWeight="SemiBold"/>
+                        </StackPanel>
+                        <Button.ToolTip>
+                            <ToolTip Content="Экспортировать данные из таблицы в .xlsm"/>
+                        </Button.ToolTip>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- (1) ОСНОВНОЙ КОНТЕНТ -->
+        <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="270" MinWidth="200"/>
+                <ColumnDefinition Width="300" MinWidth="250"/>
                 <ColumnDefinition Width="5"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Grid Grid.Column="0" Background="#f3f6ff">
+            <!-- ЛЕВАЯ КОЛОНКА: СПИСОК -->
+            <Grid Grid.Column="0" Background="#F3F6FF">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <!-- (0) НОВАЯ ПАНЕЛЬ-ЗАГОЛОВОК -->
+                    <!-- Поиск -->
                     <RowDefinition Height="Auto"/>
-                    <!-- (1) Поиск -->
-                    <RowDefinition Height="Auto"/>
-                    <!-- (2) Кнопка "Учителя" -->
-                    <RowDefinition Height="Auto"/>
-                    <!-- (3) Разделитель (если нужен) -->
+                    <!-- Кнопка "Учителя" (старая навигация) -->
                     <RowDefinition Height="*"/>
-                    <!-- (4) DataGrid -->
+                    <!-- Список -->
                     <RowDefinition Height="Auto"/>
-                    <!-- (5) Кнопки Добавить/Удалить -->
+                    <!-- Кнопки списка -->
                 </Grid.RowDefinitions>
 
-                <!-- (0) НОВАЯ ПАНЕЛЬ-ЗАГОЛОВОК -->
-                <Border Grid.Row="0" Background="#E8EDF9" BorderBrush="#B0B0B0" BorderThickness="0,0,0,1" Padding="8,5">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Текст "Сотрудники" теперь здесь, слева -->
-                        <TextBlock Grid.Column="0" Text="{Binding StaffListTitle, FallbackValue='Преподаватели'}" 
-                       FontWeight="Bold" VerticalAlignment="Center"/>
-
-                        <!-- Кнопка теперь здесь, справа (пока без команды, вы можете привязать ее позже) -->
-                        <!-- Например, можно использовать ее для экспорта всего списка преподавателей -->
-                        <Button Grid.Column="1" Content="Экспорт в Excel" Padding="8,2" VerticalAlignment="Center" Command="{Binding ExportToExcelCommand}"/>
-                    </Grid>
-                </Border>
-
-                <!-- (1) Поиск (старый Grid.Row="1" стал Grid.Row="1") -->
-                <StackPanel Grid.Row="1" Margin="4,8,4,8">
-                    <TextBlock Text="Поиск:" Margin="4,0,0,4"/>
-                    <TextBox x:Name="SearchBox" TextChanged="SearchBox_TextChanged" Margin="4,0"/>
+                <!-- Поиск -->
+                <StackPanel Grid.Row="0" Margin="8">
+                    <TextBlock Text="Поиск по ФИО:" Foreground="Black" Margin="0,0,0,4"/>
+                    <TextBox x:Name="SearchBox" TextChanged="SearchBox_TextChanged" Padding="4"/>
                 </StackPanel>
 
-                <!-- (2) Кнопка "Учителя" (старый Grid.Row="2" стал Grid.Row="2") -->
-                <Grid Grid.Row="2" Margin="4,0,4,8">
-                    <Button Content="Учителя"
-                Click="OnTeachersButton_Click"/>
+                <!-- Кнопка навигации (если нужна) -->
+                <Grid Grid.Row="1" Margin="8,0,8,8">
+                    <Button Content="Учителя" Click="OnTeachersButton_Click" Padding="5" BorderBrush="#FF969696"/>
                 </Grid>
 
-                <!-- (4) DataGrid (старый Grid.Row="3" стал Grid.Row="4") -->
-                <DataGrid x:Name="TeachersGrid" Grid.Row="4" ItemsSource="{Binding Teachers}" SelectedItem="{Binding SelectedTeacher, Mode=TwoWay}" 
-              AutoGenerateColumns="False" CanUserAddRows="False" Margin="4,0,4,0" HorizontalScrollBarVisibility="Auto"
-              PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                <!-- DataGrid Списка -->
+                <DataGrid x:Name="TeachersGrid" Grid.Row="2" 
+                          ItemsSource="{Binding Teachers}" 
+                          SelectedItem="{Binding SelectedTeacher, Mode=TwoWay}" 
+                          AutoGenerateColumns="False" CanUserAddRows="False" Margin="8,0"
+                          SelectionChanged="DataGrid_SelectionChanged"
+                          PreparingCellForEdit="DataGrid_PreparingCellForEdit" 
+                          CellEditEnding="DataGrid_CellEditEnding"
+                          BorderThickness="1" BorderBrush="#DDD">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="ФИО" Binding="{Binding FullName, UpdateSourceTrigger=PropertyChanged}" Width="*" 
-                ElementStyle="{StaticResource WrappedTextBlockCellStyle}" 
-                EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                        <DataGridTextColumn Header="ФИО преподавателя" Binding="{Binding FullName, UpdateSourceTrigger=PropertyChanged}" Width="*" 
+                                            ElementStyle="{StaticResource WrappedTextBlockCellStyle}" 
+                                            EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <!-- (5) Кнопки Добавить/Удалить (старый Grid.Row="4" стал Grid.Row="5") -->
-                <Grid Grid.Row="5" Margin="0,0,0,0" HorizontalAlignment="Center">
+                <!-- Кнопки управления списком -->
+                <Grid Grid.Row="3" Margin="8,10">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Button Grid.Column="0" Content="Добавить" Command="{Binding AddStaffCommand}" Margin="0,8,0,8" Padding="15,2" Click="Button_Click_1"/>
-                    <Button Grid.Column="1" Content="Удалить" Command="{Binding DeleteStaffCommand}" Margin="20,8,0,8" Padding="15,2"/>
+                    <Button Grid.Column="0" Content="Добавить" Command="{Binding AddStaffCommand}" Margin="0,0,5,0" Padding="0,6" BorderBrush="#FF969696"/>
+                    <Button Grid.Column="1" Content="Удалить" Command="{Binding DeleteStaffCommand}" Margin="5,0,0,0" Padding="0,6" BorderBrush="#FF969696"/>
                 </Grid>
             </Grid>
 
-            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="#B0B0B0" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns"/>
+            <!-- СПЛИТТЕР -->
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="#CCC" ResizeBehavior="PreviousAndNext"/>
 
+            <!-- ПРАВАЯ КОЛОНКА: ДЕТАЛИ -->
             <Grid Grid.Column="2">
-                <TextBlock Text="{Binding StatusText}" FontSize="18" FontWeight="SemiBold"
+                <!-- Индикаторы загрузки -->
+                <TextBlock Text="{Binding StatusText}" FontSize="20" FontWeight="SemiBold" Foreground="#555"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
                            Visibility="{Binding IsLoadingOrSaving, Converter={StaticResource BoolToVisConverter}}"/>
 
-                <TextBlock Text="Войдите в систему для показа данных" FontSize="18" FontWeight="SemiBold"
+                <TextBlock Text="Выберите преподавателя или войдите в систему" FontSize="18" Foreground="#999"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
                            Visibility="{Binding ShowLoginPrompt, Converter={StaticResource BoolToVisConverter}}"/>
 
+                <!-- Основной скролл с данными -->
                 <ScrollViewer x:Name="DetailsScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                               Visibility="{Binding ShowDataContent, Converter={StaticResource BoolToVisConverter}}">
-                    <StackPanel Margin="10" IsEnabled="{Binding CanEditData}">
+                    <StackPanel Margin="15" IsEnabled="{Binding CanEditData}">
 
-                        <!-- 1. Итоговые результаты успеваемости (аттестат) -->
-                        <TextBlock Text="1. Итоговые результаты успеваемости (аттестат)" FontWeight="Bold" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.AcademicResults}" SelectedItem="{Binding SelectedTeacher.SelectedAcademicResult, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left"
+                        <!-- 1. Итоговые результаты успеваемости -->
+                        <TextBlock Text="1. Итоговые результаты успеваемости (аттестат)" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.AcademicResults}" SelectedItem="{Binding SelectedTeacher.SelectedAcademicResult, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
                                   IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}"
                                   PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Учебный год" Binding="{Binding AcademicPeriod}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                                 <DataGridTextColumn Header="Предмет" Binding="{Binding Subject}" Width="Auto" MinWidth="180" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ср. балл 1 сем." Binding="{Binding AvgSem1}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ср. балл 2 сем." Binding="{Binding AvgSem2}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Динамика сем." Binding="{Binding DynamicsSem}" IsReadOnly="True" Width="Auto" MinWidth="90" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <!--<DataGridTextColumn Header="Результаты промежуточной аттестации" Binding="{Binding ResultATest}" Width="Auto" MinWidth="300" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>-->
-                                <DataGridTextColumn Header="Успеваемость 1 сем." Binding="{Binding AvgSuccessRate}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Успеваемость 2 сем." Binding="{Binding AvgSuccessRateSem2}" Width="Auto" MinWidth="160" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Динамика успев." Binding="{Binding DynamicsAvgSuccessRate}" IsReadOnly="True" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Качество 1 сем." Binding="{Binding AvgQualityRate}" Width="Auto" MinWidth="130" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Качество 2 сем." Binding="{Binding AvgQualityRateSem2}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Динамика кач." Binding="{Binding DynamicsAvgQualityRate}" IsReadOnly="True" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Промежуточный" Binding="{Binding Intermediate}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="СОУ Входной" Binding="{Binding EntrySouRate}" Width="Auto" MinWidth="70" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="СОУ Итоговый" Binding="{Binding ExitSouRate}" Width="Auto" MinWidth="70" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Динамика СОУ" Binding="{Binding DynamicsSouRate}" IsReadOnly="True" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Ср. балл 1 сем." Binding="{Binding AvgSem1}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Ср. балл 2 сем." Binding="{Binding AvgSem2}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Динамика сем." Binding="{Binding DynamicsSem}" IsReadOnly="True" Width="Auto" MinWidth="90" ElementStyle="{StaticResource WrappedTextBlockCellStyle}"/>
+
+                                <DataGridTextColumn Header="Успеваемость 1 сем." Binding="{Binding AvgSuccessRate}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Успеваемость 2 сем." Binding="{Binding AvgSuccessRateSem2}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Динамика успев." Binding="{Binding DynamicsAvgSuccessRate}" IsReadOnly="True" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}"/>
+
+                                <DataGridTextColumn Header="Качество 1 сем." Binding="{Binding AvgQualityRate}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Качество 2 сем." Binding="{Binding AvgQualityRateSem2}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Динамика кач." Binding="{Binding DynamicsAvgQualityRate}" IsReadOnly="True" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}"/>
+
+                                <!-- НОВАЯ КОЛОНКА: ПРОМЕЖУТОЧНЫЙ -->
+                                <DataGridTextColumn Header="Промежуточный" Binding="{Binding Intermediate}" Width="Auto" MinWidth="110" FontWeight="Bold" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+
+                                <DataGridTextColumn Header="СОУ Входной" Binding="{Binding EntrySouRate}" Width="Auto" MinWidth="90" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="СОУ Итоговый" Binding="{Binding ExitSouRate}" Width="Auto" MinWidth="90" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Динамика СОУ" Binding="{Binding DynamicsSouRate}" IsReadOnly="True" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddAcademicResultCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteAcademicResultCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddAcademicResultCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteAcademicResultCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 1A. Результаты промежуточной аттестации (НОВАЯ ТАБЛИЦА) -->
-                        <TextBlock Text="1А. Результаты промежуточной аттестации" FontWeight="Bold" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.IntermediateAssessments}" SelectedItem="{Binding SelectedTeacher.SelectedIntermediateAssessment, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 1А. Результаты промежуточной аттестации -->
+                        <TextBlock Text="1А. Результаты промежуточной аттестации" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.IntermediateAssessments}" SelectedItem="{Binding SelectedTeacher.SelectedIntermediateAssessment, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Учебный год" Binding="{Binding AcademicYear}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                                 <DataGridTextColumn Header="Предмет" Binding="{Binding Subject}" Width="Auto" MinWidth="180" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="СР БАЛ" Binding="{Binding AvgScore}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="КАЧЕСТВО" Binding="{Binding Quality}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="СОУ" Binding="{Binding Sou}" Width="Auto" MinWidth="90" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="СР БАЛ" Binding="{Binding AvgScore}" Width="Auto" MinWidth="80" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="КАЧЕСТВО" Binding="{Binding Quality}" Width="Auto" MinWidth="80" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="СОУ" Binding="{Binding Sou}" Width="Auto" MinWidth="80" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddIntermediateAssessmentCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteIntermediateAssessmentCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddIntermediateAssessmentCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteIntermediateAssessmentCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 2. Результаты государственной итоговой аттестации (ГИА) -->
-                        <TextBlock Text="2. Результаты государственной итоговой аттестации (ГИА)" FontWeight="Bold" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.GiaResults}" SelectedItem="{Binding SelectedTeacher.SelectedGiaResult, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 2. ГИА -->
+                        <TextBlock Text="2. Результаты государственной итоговой аттестации (ГИА)" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.GiaResults}" SelectedItem="{Binding SelectedTeacher.SelectedGiaResult, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Предмет" Binding="{Binding Subject}" Width="Auto" MinWidth="160" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                                 <DataGridTextColumn Header="Группа" Binding="{Binding Group}" Width="Auto" MinWidth="80" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во участников" Binding="{Binding TotalParticipants}" Width="Auto" MinWidth="150" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во «5»" Binding="{Binding Count5}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во «4»" Binding="{Binding Count4}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во «3»" Binding="{Binding Count3}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во «2»" Binding="{Binding Count2}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Средний балл" Binding="{Binding AvgScore}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Участников" Binding="{Binding TotalParticipants}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Кол-во «5»" Binding="{Binding Count5}" Width="Auto" MinWidth="80"/>
+                                <DataGridTextColumn Header="Кол-во «4»" Binding="{Binding Count4}" Width="Auto" MinWidth="80"/>
+                                <DataGridTextColumn Header="Кол-во «3»" Binding="{Binding Count3}" Width="Auto" MinWidth="80"/>
+                                <DataGridTextColumn Header="Кол-во «2»" Binding="{Binding Count2}" Width="Auto" MinWidth="80"/>
+                                <DataGridTextColumn Header="Средний балл" Binding="{Binding AvgScore}" Width="Auto" MinWidth="100"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddGiaResultCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteGiaResultCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddGiaResultCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteGiaResultCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- Остальная часть кода без изменений -->
-                        <!-- ... -->
-                        <TextBlock Text="3. Результаты государственной аттестации (ДЭ)" FontWeight="Bold" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.DemoExamResults}" SelectedItem="{Binding SelectedTeacher.SelectedDemoExamResult, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 3. Демоэкзамен -->
+                        <TextBlock Text="3. Результаты государственной аттестации (ДЭ)" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.DemoExamResults}" SelectedItem="{Binding SelectedTeacher.SelectedDemoExamResult, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Наименование компетенции" Binding="{Binding Subject}" Width="Auto" MinWidth="220" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Группа" Binding="{Binding Group}" Width="Auto" MinWidth="90" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во участников" Binding="{Binding TotalParticipants}" Width="Auto" MinWidth="150" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во «5»" Binding="{Binding Count5}" Width="Auto" MinWidth="70" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во «4»" Binding="{Binding Count4}" Width="Auto" MinWidth="70" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во «3»" Binding="{Binding Count3}" Width="Auto" MinWidth="70" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во «2»" Binding="{Binding Count2}" Width="Auto" MinWidth="70" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Средний балл" Binding="{Binding AvgScore}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Компетенция" Binding="{Binding Subject}" Width="Auto" MinWidth="200" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Группа" Binding="{Binding Group}" Width="Auto" MinWidth="80"/>
+                                <DataGridTextColumn Header="Участников" Binding="{Binding TotalParticipants}" Width="Auto" MinWidth="100"/>
+                                <DataGridTextColumn Header="Кол-во «5»" Binding="{Binding Count5}" Width="Auto" MinWidth="70"/>
+                                <DataGridTextColumn Header="Кол-во «4»" Binding="{Binding Count4}" Width="Auto" MinWidth="70"/>
+                                <DataGridTextColumn Header="Кол-во «3»" Binding="{Binding Count3}" Width="Auto" MinWidth="70"/>
+                                <DataGridTextColumn Header="Кол-во «2»" Binding="{Binding Count2}" Width="Auto" MinWidth="70"/>
+                                <DataGridTextColumn Header="Ср. балл" Binding="{Binding AvgScore}" Width="Auto" MinWidth="80"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddDemoExamResultCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteDemoExamResultCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddDemoExamResultCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteDemoExamResultCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 4. Результаты освоения ... -->
-                        <TextBlock Text="4. Результаты освоения обучающимися образовательных программ по итогам независимой оценки качества образования" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.IndependentAssessments}" SelectedItem="{Binding SelectedTeacher.SelectedIndependentAssessment, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 4. НОКО -->
+                        <TextBlock Text="4. Результаты независимой оценки качества (НОКО/ВПР)" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.IndependentAssessments}" SelectedItem="{Binding SelectedTeacher.SelectedIndependentAssessment, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Вид НОКО (организация)" Binding="{Binding AssessmentName}" Width="Auto" MinWidth="200" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Дата" Binding="{Binding AssessmentDate}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Класс/Предмет" Binding="{Binding ClassSubject}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во всего" Binding="{Binding StudentsTotal}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во участвовавших" Binding="{Binding StudentsParticipated}" Width="Auto" MinWidth="180" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во справившихся" Binding="{Binding StudentsPassed}" Width="Auto" MinWidth="180" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во 5" Binding="{Binding Count5}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во 4" Binding="{Binding Count4}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во 3" Binding="{Binding Count3}" Width="Auto" MinWidth="90" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Кол-во 2" Binding="{Binding Count2}" Width="Auto" MinWidth="90" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Вид НОКО" Binding="{Binding AssessmentName}" Width="Auto" MinWidth="180" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Дата" Binding="{Binding AssessmentDate}" Width="Auto" MinWidth="100"/>
+                                <DataGridTextColumn Header="Класс/Предмет" Binding="{Binding ClassSubject}" Width="Auto" MinWidth="140"/>
+                                <DataGridTextColumn Header="Всего" Binding="{Binding StudentsTotal}" Width="Auto" MinWidth="60"/>
+                                <DataGridTextColumn Header="Участв." Binding="{Binding StudentsParticipated}" Width="Auto" MinWidth="80"/>
+                                <DataGridTextColumn Header="Справились" Binding="{Binding StudentsPassed}" Width="Auto" MinWidth="80"/>
+                                <DataGridTextColumn Header="«5»" Binding="{Binding Count5}" Width="Auto" MinWidth="60"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddIndependentAssessmentCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteIndependentAssessmentCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddIndependentAssessmentCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteIndependentAssessmentCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 5. Деятельность по раннему самоопределению ... -->
-                        <TextBlock Text="5. Деятельность по раннему самоопределению и профессиональной ориентации обучающихся" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.SelfDeterminations}" SelectedItem="{Binding SelectedTeacher.SelectedSelfDetermination, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 5. Самоопределение -->
+                        <TextBlock Text="5. Раннее самоопределение и профориентация" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.SelfDeterminations}" SelectedItem="{Binding SelectedTeacher.SelectedSelfDetermination, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="130" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Наименование мероприятия" Binding="{Binding Name}" Width="Auto" MinWidth="280" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Роль педагога" Binding="{Binding Role}" Width="Auto" MinWidth="160" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Мероприятие" Binding="{Binding Name}" Width="Auto" MinWidth="250" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Роль" Binding="{Binding Role}" Width="Auto" MinWidth="120"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddSelfDeterminationCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteSelfDeterminationCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddSelfDeterminationCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteSelfDeterminationCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 6. Участие обучающихся в олимпиадах ... -->
-                        <TextBlock Text="6. Участие обучающихся в олимпиадах, конкурсах, фестивалях, соревнованиях (далее – События)" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.StudentOlympiads}" SelectedItem="{Binding SelectedTeacher.SelectedStudentOlympiad, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 6. Олимпиады -->
+                        <TextBlock Text="6. Олимпиады, конкурсы, соревнования" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.StudentOlympiads}" SelectedItem="{Binding SelectedTeacher.SelectedStudentOlympiad, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="130" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Наименование События" Binding="{Binding Name}" Width="Auto" MinWidth="240" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Форма участия" Binding="{Binding Form}" Width="Auto" MinWidth="130" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="ФИО участника/кадета" Binding="{Binding Cadet}" Width="Auto" MinWidth="220" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Результат" Binding="{Binding Result}" Width="Auto" MinWidth="130" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Событие" Binding="{Binding Name}" Width="Auto" MinWidth="220" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Участник" Binding="{Binding Cadet}" Width="Auto" MinWidth="180"/>
+                                <DataGridTextColumn Header="Результат" Binding="{Binding Result}" Width="Auto" MinWidth="120"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddStudentOlympiadCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteStudentOlympiadCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddStudentOlympiadCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteStudentOlympiadCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 7. Деятельность в качестве члена жюри ... -->
-                        <TextBlock Text="7. Деятельность в качестве члена жюри олимпиад, конкурсов" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.JuryActivities}" SelectedItem="{Binding SelectedTeacher.SelectedJuryActivity, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 7. Жюри -->
+                        <TextBlock Text="7. Деятельность в качестве члена жюри" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.JuryActivities}" SelectedItem="{Binding SelectedTeacher.SelectedJuryActivity, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="130" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Наименование мероприятия" Binding="{Binding Name}" Width="Auto" MinWidth="280" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Мероприятие" Binding="{Binding Name}" Width="Auto" MinWidth="250" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddJuryActivityCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteJuryActivityCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddJuryActivityCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteJuryActivityCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 8. Проведение мастер-классов ... -->
-                        <TextBlock Text="8. Проведение мастер-классов, открытых занятий, мероприятий" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.MasterClasses}" SelectedItem="{Binding SelectedTeacher.SelectedMasterClass, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 8. Мастер-классы -->
+                        <TextBlock Text="8. Мастер-классы и открытые занятия" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.MasterClasses}" SelectedItem="{Binding SelectedTeacher.SelectedMasterClass, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="130" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Наименование" Binding="{Binding Name}" Width="Auto" MinWidth="280" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Наименование" Binding="{Binding Name}" Width="Auto" MinWidth="250" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" Width="Auto" MinWidth="100"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddMasterClassCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteMasterClassCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddMasterClassCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteMasterClassCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 9. Наличие выступлений ... -->
-                        <TextBlock Text="9. Наличие выступлений на научно-практических конференциях (семинарах, педагогических чтениях, симпозиумах, круглых столах)" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.Speeches}" SelectedItem="{Binding SelectedTeacher.SelectedSpeech, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 9. Выступления -->
+                        <TextBlock Text="9. Выступления на конференциях" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.Speeches}" SelectedItem="{Binding SelectedTeacher.SelectedSpeech, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="130" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Наименование" Binding="{Binding Name}" Width="Auto" MinWidth="280" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Наименование" Binding="{Binding Name}" Width="Auto" MinWidth="250" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" Width="Auto" MinWidth="100"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddSpeechCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteSpeechCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddSpeechCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteSpeechCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 10. Наличие публикации ... -->
-                        <TextBlock Text="10. Наличие публикации (наименование, где, когда опубликована, в том числе в электронном виде)" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.Publications}" SelectedItem="{Binding SelectedTeacher.SelectedPublication, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 10. Публикации -->
+                        <TextBlock Text="10. Публикации" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.Publications}" SelectedItem="{Binding SelectedTeacher.SelectedPublication, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="130" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Наименование" Binding="{Binding Title}" Width="Auto" MinWidth="280" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Дата" Binding="{Binding Date}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Наименование" Binding="{Binding Title}" Width="Auto" MinWidth="250" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Дата" Binding="{Binding Date}" Width="Auto" MinWidth="100"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddPublicationCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeletePublicationCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddPublicationCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeletePublicationCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 11. Участие в экспериментальной ... -->
-                        <TextBlock Text="11. Участие в экспериментальной и инновационной деятельности" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.ExperimentalProjects}" SelectedItem="{Binding SelectedTeacher.SelectedExperimentalProject, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 11. Экспериментальные проекты -->
+                        <TextBlock Text="11. Экспериментальная и инновационная деятельность" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.ExperimentalProjects}" SelectedItem="{Binding SelectedTeacher.SelectedExperimentalProject, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Наименование проекта" Binding="{Binding Name}" Width="Auto" MinWidth="320" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Дата" Binding="{Binding Date}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Наименование проекта" Binding="{Binding Name}" Width="Auto" MinWidth="300" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Дата" Binding="{Binding Date}" Width="Auto" MinWidth="100"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddExperimentalProjectCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteExperimentalProjectCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddExperimentalProjectCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteExperimentalProjectCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 12. Наставническая деятельность -->
-                        <TextBlock Text="12. Наставническая деятельность" FontWeight="Bold" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.Mentorships}" SelectedItem="{Binding SelectedTeacher.SelectedMentorship, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 12. Наставничество -->
+                        <TextBlock Text="12. Наставническая деятельность" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.Mentorships}" SelectedItem="{Binding SelectedTeacher.SelectedMentorship, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="ФИО стажера" Binding="{Binding Trainee}" Width="Auto" MinWidth="220" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Номер приказа" Binding="{Binding OrderNo}" Width="Auto" MinWidth="160" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Дата приказа" Binding="{Binding OrderDate}" Width="Auto" MinWidth="140" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="ФИО стажера" Binding="{Binding Trainee}" Width="Auto" MinWidth="200" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Номер приказа" Binding="{Binding OrderNo}" Width="Auto" MinWidth="120"/>
+                                <DataGridTextColumn Header="Дата приказа" Binding="{Binding OrderDate}" Width="Auto" MinWidth="100"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddMentorshipCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteMentorshipCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddMentorshipCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteMentorshipCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 13. Разработка программно-методического ... -->
-                        <TextBlock Text="13. Разработка программно-методического сопровождения образовательного процесса" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.ProgramSupports}" SelectedItem="{Binding SelectedTeacher.SelectedProgramSupport, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 13. Программно-методическое сопровождение -->
+                        <TextBlock Text="13. Программно-методическое сопровождение" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.ProgramSupports}" SelectedItem="{Binding SelectedTeacher.SelectedProgramSupport, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Наименование рабочей программы" Binding="{Binding ProgramName}" Width="Auto" MinWidth="340" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridCheckBoxColumn Header="Контрольно-измерительные материалы" Binding="{Binding HasControlMaterials}" Width="Auto" MinWidth="260"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Наименование программы" Binding="{Binding ProgramName}" Width="Auto" MinWidth="300" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridCheckBoxColumn Header="Контрольно-измерительные материалы" Binding="{Binding HasControlMaterials}" Width="Auto"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddProgramSupportCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteProgramSupportCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddProgramSupportCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteProgramSupportCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
-                        <!-- 14. Участие в профессиональных конкурсах -->
-                        <TextBlock Text="14. Участие в профессиональных конкурсах" FontWeight="Bold" Margin="0,8,0,4"/>
-                        <DataGrid ItemsSource="{Binding SelectedTeacher.ProfessionalCompetitions}" SelectedItem="{Binding SelectedTeacher.SelectedProfessionalCompetition, Mode=TwoWay}" PreviewMouseWheel="DataGrid_PreviewMouseWheel" AutoGenerateColumns="False" Margin="0,0,0,0" CanUserAddRows="False" HorizontalScrollBarVisibility="Auto" MinRowHeight="25" HorizontalAlignment="Left" IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" PreparingCellForEdit="DataGrid_PreparingCellForEdit" CellEditEnding="DataGrid_CellEditEnding">
+                        <!-- 14. Профессиональные конкурсы -->
+                        <TextBlock Text="14. Участие в профессиональных конкурсах" FontWeight="Bold" FontSize="16" Margin="0,0,0,5"/>
+                        <DataGrid ItemsSource="{Binding SelectedTeacher.ProfessionalCompetitions}" SelectedItem="{Binding SelectedTeacher.SelectedProfessionalCompetition, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" MinRowHeight="25" HorizontalAlignment="Left"
+                                  IsReadOnly="{Binding Path=DataContext.CanEditData, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="130" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Наименование конкурса" Binding="{Binding Name}" Width="Auto" MinWidth="240" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Достижение" Binding="{Binding Achievement}" Width="Auto" MinWidth="160" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" Width="Auto" MinWidth="110" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
-                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="Auto" MinWidth="120" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Наименование конкурса" Binding="{Binding Name}" Width="Auto" MinWidth="250" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
+                                <DataGridTextColumn Header="Достижение" Binding="{Binding Achievement}" Width="Auto" MinWidth="120"/>
+                                <DataGridTextColumn Header="Дата" Binding="{Binding EventDate}" Width="Auto" MinWidth="100"/>
+                                <DataGridTextColumn Header="Ссылка" Binding="{Binding Link}" Width="Auto" MinWidth="100" ElementStyle="{StaticResource WrappedTextBlockCellStyle}" EditingElementStyle="{StaticResource EditingTextBoxStyle}"/>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,5,0,12">
-                            <Button Content="+" Command="{Binding SelectedTeacher.AddProfessionalCompetitionCommand}" Padding="5,0" MinWidth="30" MinHeight="25"/>
-                            <Button Content="-" Command="{Binding SelectedTeacher.DeleteProfessionalCompetitionCommand}" Margin="5,0,0,0" Padding="5,0" MinWidth="30" MinHeight="25"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,20">
+                            <Button Content=" + " Command="{Binding SelectedTeacher.AddProfessionalCompetitionCommand}" MinWidth="30"/>
+                            <Button Content=" - " Command="{Binding SelectedTeacher.DeleteProfessionalCompetitionCommand}" MinWidth="30" Margin="5,0,0,0"/>
                         </StackPanel>
 
                     </StackPanel>
@@ -399,48 +468,28 @@
             </Grid>
         </Grid>
 
-        <Border Grid.Row="1" Background="#FFE0E0E0" Padding="5" BorderBrush="Gray" BorderThickness="0,1,0,0">
+        <!-- (2) НИЖНЯЯ ПАНЕЛЬ СТАТУСА И СОХРАНЕНИЯ -->
+        <Border Grid.Row="2" Background="#EEE" Padding="6" BorderBrush="Gray" BorderThickness="0,1,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <Button Grid.Column="2" Content="Сохранить" HorizontalAlignment="Left" Padding="10,3" Command="{Binding SaveChangesCommand}"/>
-                <!-- Кнопка Сохранить теперь слева -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="{Binding LoginButtonText}" Padding="10,3" Command="{Binding ToggleLoginCommand}"/>
-                    <TextBlock Text="{Binding UserStatusText}" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"
-                               Visibility="{Binding IsLoggedIn, Converter={StaticResource BoolToVisConverter}}"/>
-                </StackPanel>
-            </Grid>
-        </Border>
 
-        <Border Grid.Row="2" Background="LightGray" BorderBrush="Gray" BorderThickness="0,1,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="{Binding ConnectionStatusText}" Padding="5" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                <Button Grid.Column="1" Content="Обновить БД" Margin="0,0,5,0" Padding="10,3" VerticalAlignment="Center"
-                        Command="{Binding RetryConnectionCommand}">
-                    <Button.Style>
-                        <Style TargetType="Button">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Style.Triggers>
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding IsLoggedIn}" Value="True"/>
-                                        <Condition Binding="{Binding IsLoading}" Value="False"/>
-                                        <Condition Binding="{Binding IsSavingData}" Value="False"/>
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </MultiDataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
+                <!-- Статус соединения -->
+                <TextBlock Grid.Column="0" Text="{Binding ConnectionStatusText}" VerticalAlignment="Center" Margin="5,0" Foreground="Gray"/>
+
+                <!-- Кнопки управления сессией и сохранения -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="Обновить БД" Command="{Binding RetryConnectionCommand}" Margin="0,0,10,0" Padding="10,4"
+                            Visibility="{Binding IsLoggedIn, Converter={StaticResource BoolToVisConverter}}" BorderBrush="#FF969696"/>
+
+                    <Button Content="{Binding LoginButtonText}" Padding="10,4" Command="{Binding ToggleLoginCommand}" Margin="0,0,15,0" Click="Button_Click_2" BorderBrush="#FF969696"/>
+
+                    <Button Content=" СОХРАНИТЬ " Padding="25,4" Command="{Binding SaveChangesCommand}" FontWeight="Bold" 
+                            Background="#DDFFDD" BorderBrush="#99CC99"/>
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>
