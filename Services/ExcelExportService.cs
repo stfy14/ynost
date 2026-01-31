@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Ynost.ViewModels;
+using static Ynost.ViewModels.TeacherMonitoringViewModel;
 
 namespace Ynost.Services
 {
@@ -116,7 +117,7 @@ namespace Ynost.Services
                 worksheet.Cell(currentRow, 1).Style.Font.FontSize = 16;
                 currentRow += 3;
 
-                WriteBoardsTable(worksheet, ref currentRow, "1.1 Итоги освоения образовательных программ — по предметам", monitoringVm.Boards);
+                WriteBoardsTable(worksheet, ref currentRow, "1.1 Итоги освоения образовательных программ — по предметам", monitoringVm.YearlyBoards);
 
                 WriteTable(worksheet, ref currentRow, "2. Результаты ГИА (ЕГЭ)", monitoringVm.GiaResults,
                     headers: new[] { "Предмет", "Класс", "По списку", "Участвовали", "81–99 баллов, %", "61–80 баллов, %", "0–60 баллов, %", "Ниже мин., %", "Ссылка" },
@@ -246,18 +247,9 @@ namespace Ynost.Services
             currentRow += 2;
         }
 
-        private void WriteBoardsTable(IXLWorksheet worksheet, ref int currentRow, string title, ObservableCollection<SubjectBoard> boards)
+        private void WriteBoardsTable(IXLWorksheet worksheet, ref int currentRow, string title, ObservableCollection<YearlySubjectGroup> yearlyBoards)
         {
-            // ... (здесь была аналогичная проблема, исправляем) ...
-            if (boards == null || !boards.Any())
-            {
-                var titleCell = worksheet.Cell(currentRow, 1);
-                titleCell.Value = title;
-                titleCell.Style.Font.Bold = true;
-                titleCell.Style.Font.FontSize = 14;
-                currentRow += 2;
-                return;
-            }
+            if (yearlyBoards == null || !yearlyBoards.Any()) return;
 
             worksheet.Cell(currentRow, 1).Value = title;
             worksheet.Cell(currentRow, 1).Style.Font.Bold = true;
@@ -266,51 +258,50 @@ namespace Ynost.Services
 
             string[] headers = { "", "I₂", "II₂", "III₂", "IV₂", "Динамика" };
 
-            foreach (var board in boards)
+            // Проходим по каждой годовой группе
+            foreach (var yearGroup in yearlyBoards)
             {
-                int boardStartRow = currentRow;
-
-                var subjectCell = worksheet.Cell(currentRow, 1);
-                subjectCell.Value = board.SubjectName;
-                subjectCell.Style.Font.Bold = true;
-                subjectCell.Style.Fill.BackgroundColor = XLColor.LightGray;
+                // Пишем заголовок года
+                var yearCell = worksheet.Cell(currentRow, 1);
+                yearCell.Value = yearGroup.Year;
+                yearCell.Style.Font.Bold = true;
+                yearCell.Style.Font.FontSize = 16;
+                yearCell.Style.Fill.BackgroundColor = XLColor.LightGray;
                 worksheet.Range(currentRow, 1, currentRow, headers.Length).Merge();
                 currentRow++;
 
-                int headerRowNumber = currentRow;
-                var headerCell = worksheet.Cell(headerRowNumber, 1);
-                headerCell.InsertData(headers, true);
-
-                // **ИСПРАВЛЕНИЕ: Применяем стиль к диапазону шапки**
-                var headerRange = worksheet.Range(headerRowNumber, 1, headerRowNumber, headers.Length);
-                headerRange.Style.Font.Bold = true;
-                headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#DDEBF7");
-                currentRow++;
-
-                int boardDataStartRow = currentRow;
-
-                foreach (var metric in board.Metrics)
+                // Проходим по каждому предмету внутри года
+                foreach (var board in yearGroup.SubjectBoards)
                 {
-                    worksheet.Cell(currentRow, 1).Value = metric.Type;
-                    worksheet.Cell(currentRow, 2).Value = metric.I2;
-                    worksheet.Cell(currentRow, 3).Value = metric.II2;
-                    worksheet.Cell(currentRow, 4).Value = metric.III2;
-                    worksheet.Cell(currentRow, 5).Value = metric.IV2;
-                    worksheet.Cell(currentRow, 6).Value = metric.Y;
+                    var subjectCell = worksheet.Cell(currentRow, 1);
+                    subjectCell.Value = board.SubjectName;
+                    subjectCell.Style.Font.Bold = true;
+                    worksheet.Range(currentRow, 1, currentRow, headers.Length).Merge();
                     currentRow++;
+
+                    // Шапка таблицы (кач, усп...)
+                    int headerRowNumber = currentRow;
+                    var headerCell = worksheet.Cell(headerRowNumber, 1);
+                    headerCell.InsertData(headers, true);
+                    var headerRange = worksheet.Range(headerRowNumber, 1, headerRowNumber, headers.Length);
+                    headerRange.Style.Font.Bold = true;
+                    headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#DDEBF7");
+                    currentRow++;
+
+                    // Данные
+                    foreach (var metric in board.Metrics)
+                    {
+                        worksheet.Cell(currentRow, 1).Value = metric.Type;
+                        worksheet.Cell(currentRow, 2).Value = metric.I2;
+                        worksheet.Cell(currentRow, 3).Value = metric.II2;
+                        worksheet.Cell(currentRow, 4).Value = metric.III2;
+                        worksheet.Cell(currentRow, 5).Value = metric.IV2;
+                        worksheet.Cell(currentRow, 6).Value = metric.Y;
+                        currentRow++;
+                    }
+                    currentRow++; // Пустая строка между предметами
                 }
-
-                var boardDataRange = worksheet.Range(boardDataStartRow, 1, currentRow - 1, headers.Length);
-                boardDataRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
-
-                // Используем boardStartRow, чтобы включить и серую шапку предмета в рамку
-                var fullBoardRange = worksheet.Range(boardStartRow, 1, currentRow - 1, headers.Length);
-                fullBoardRange.Style.Border.SetInsideBorder(XLBorderStyleValues.Thin);
-                fullBoardRange.Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
-
-                currentRow++;
             }
-
             currentRow++;
         }
 

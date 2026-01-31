@@ -112,11 +112,14 @@ namespace Ynost.ViewModels
         public IRelayCommand AddProfessionalCompetitionCommand { get; private set; } = null!;
         public IRelayCommand DeleteProfessionalCompetitionCommand { get; private set; } = null!;
         public IAsyncRelayCommand ImportFromExcelCommand { get; }
+        public IRelayCommand<SubjectBoard> DeleteSpecificBoardCommand { get; }
         #endregion
 
         #region 1.1 Итоги по предметам (Boards)
-        public ObservableCollection<SubjectBoard> Boards { get; } = new();
-        [ObservableProperty] private SubjectBoard? _selectedBoard;
+        public ObservableCollection<YearlySubjectGroup> YearlyBoards { get; } = new();
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(DeleteBoardCommand))]
+        private SubjectBoard? _selectedBoard;
         public IRelayCommand AddBoardCommand { get; }
         public IRelayCommand DeleteBoardCommand { get; }
         private string CurrentYear => SelectedAcademicYear?.AcademicYear ?? DateTime.Now.ToString("yyyy–yyyy");
@@ -138,11 +141,59 @@ namespace Ynost.ViewModels
             ExportToExcelCommand = new AsyncRelayCommand(ExportMonitoringDataToExcel, () => SelectedTeach != null);
             ImportFromExcelCommand = new AsyncRelayCommand(ImportDataFromExcel, () => SelectedTeach != null);
 
-            AddBoardCommand = new RelayCommand(() => Boards.Add(new SubjectBoard()));
+            AddBoardCommand = new RelayCommand(() =>
+            {
+                var firstYearGroup = YearlyBoards.FirstOrDefault();
+                string currentAcademicYear = DateHelper.GetCurrentAcademicYear();
+
+                if (firstYearGroup == null || firstYearGroup.Year != currentAcademicYear)
+                {
+                    firstYearGroup = new YearlySubjectGroup { Year = currentAcademicYear };
+                    YearlyBoards.Insert(0, firstYearGroup);
+                }
+
+                // Создаем новый предмет
+                var newBoard = new SubjectBoard { SubjectName = "Новый предмет" };
+                firstYearGroup.SubjectBoards.Add(newBoard);
+
+                // ВАЖНО: Сразу делаем его выбранным, чтобы кнопка "Удалить" загорелась
+                SelectedBoard = newBoard;
+            });
+
             DeleteBoardCommand = new RelayCommand(() =>
             {
-                if (SelectedBoard != null) Boards.Remove(SelectedBoard);
-                SelectedBoard = Boards.FirstOrDefault();
+                if (SelectedBoard == null) return;
+                // Находим родительскую группу (год) и удаляем предмет из нее
+                foreach (var yearGroup in YearlyBoards)
+                {
+                    // ObservableCollection поддерживает метод Contains и Remove, всё будет работать
+                    if (yearGroup.SubjectBoards.Contains(SelectedBoard))
+                    {
+                        yearGroup.SubjectBoards.Remove(SelectedBoard);
+                        SelectedBoard = null;
+                        break;
+                    }
+                }
+            }, () => SelectedBoard != null);
+
+            DeleteSpecificBoardCommand = new RelayCommand<SubjectBoard>(sb =>
+            {
+                if (sb == null) return;
+
+                // Ищем, в каком году лежит этот предмет и удаляем его
+                foreach (var group in YearlyBoards)
+                {
+                    if (group.SubjectBoards.Contains(sb))
+                    {
+                        group.SubjectBoards.Remove(sb);
+                        // Если в году не осталось предметов, можно удалить и сам год (по желанию)
+                        if (group.SubjectBoards.Count == 0)
+                        {
+                            YearlyBoards.Remove(group);
+                        }
+                        break;
+                    }
+                }
             });
 
             RegisterSection(AcademicYearResults, () => new AcademicYearResultTeacher(), nameof(SelectedAcademicYear));
@@ -233,7 +284,7 @@ namespace Ynost.ViewModels
             IndependentAssessments.Clear(); SelfDeterminations.Clear(); StudentOlympiads.Clear(); JuryActivities.Clear();
             MasterClasses.Clear(); Speeches.Clear(); Publications.Clear(); ExperimentalProjects.Clear();
             Mentorships.Clear(); ProgramSupports.Clear(); ProfessionalCompetitions.Clear();
-            Boards.Clear();
+            YearlyBoards.Clear();
         }
 
         private async Task SaveAsync()
@@ -265,30 +316,56 @@ namespace Ynost.ViewModels
         #region 7. Логика для таблицы 1.1 (Boards)
         private async Task LoadBoardsAsync()
         {
-            Boards.Clear();
+            YearlyBoards.Clear();
             if (SelectedTeach == null) return;
 
-            var raw = await _db.LoadSubjectQuarterMetricsAsync(SelectedTeach.Id, CurrentYear);
+            // 1. Загружаем АБСОЛЮТНО ВСЕ метрики для этого учителя, игнорируя текущий год системы
+            // Убедись, что в DatabaseService есть метод LoadAllSubjectQuarterMetricsForTeacherAsync
+            var allMetrics = await _db.LoadAllSubjectQuarterMetricsForTeacherAsync(SelectedTeach.Id);
 
-            foreach (var grp in raw.GroupBy(r => r.Subject))
+            // 2. Группируем полученные данные по AcademicYear
+            // (например, отдельно "2023-2024", отдельно "2025–2025")
+            var groupedByYear = allMetrics.GroupBy(m => m.AcademicYear);
+
+            // 3. Сортируем года по убыванию (новые сверху) и создаем группы для UI
+            foreach (var yearGroup in groupedByYear.OrderByDescending(g => g.Key))
             {
-                var sb = new SubjectBoard { SubjectName = grp.Key };
+                var yearlyGroup = new YearlySubjectGroup { Year = yearGroup.Key };
 
-                void put(string q, string type, Func<SubjectQuarterMetric, string> pick)
+                // Внутри года группируем по предметам
+                var groupedBySubject = yearGroup.GroupBy(m => m.Subject);
+
+                foreach (var subjectGroup in groupedBySubject)
                 {
-                    var rec = grp.FirstOrDefault(r => r.Quarter == q);
-                    if (rec == null) return;
-                    var row = sb.Metrics.First(r => r.Type == type);
-                    row.GetType().GetProperty(q)!.SetValue(row, pick(rec));
+                    var sb = new SubjectBoard { SubjectName = subjectGroup.Key };
+
+                    // Локальная функция для заполнения ячеек
+                    void put(string q, string type, Func<SubjectQuarterMetric, string> pick)
+                    {
+                        var rec = subjectGroup.FirstOrDefault(r => r.Quarter == q);
+                        if (rec == null) return;
+
+                        // Находим нужную строку (Кач/Усп/СОУ) в UI
+                        var row = sb.Metrics.FirstOrDefault(r => r.Type == type);
+                        if (row != null)
+                        {
+                            // Через рефлексию пишем в свойства I2, II2...
+                            row.GetType().GetProperty(q)?.SetValue(row, pick(rec));
+                        }
+                    }
+
+                    // Проходим по четвертям/итогам
+                    foreach (var q in new[] { "I2", "II2", "III2", "IV2", "Y" })
+                    {
+                        put(q, "кач", m => m.Kach);
+                        put(q, "усп", m => m.Usp);
+                        put(q, "СОУ", m => m.Sou);
+                    }
+
+                    yearlyGroup.SubjectBoards.Add(sb);
                 }
 
-                foreach (var q in new[] { "I2", "II2", "III2", "IV2", "Y" })
-                {
-                    put(q, "кач", m => m.Kach);
-                    put(q, "усп", m => m.Usp);
-                    put(q, "СОУ", m => m.Sou);
-                }
-                Boards.Add(sb);
+                YearlyBoards.Add(yearlyGroup);
             }
         }
 
@@ -296,37 +373,50 @@ namespace Ynost.ViewModels
         {
             if (SelectedTeach == null) return;
 
-            var list = new List<SubjectQuarterMetric>();
-
-            foreach (var sb in Boards)
+            // Проходим по каждой годовой группе, которая есть на экране
+            foreach (var yearGroup in YearlyBoards)
             {
-                foreach (var q in new[] { "I2", "II2", "III2", "IV2", "Y" })
+                var listToSave = new List<SubjectQuarterMetric>();
+
+                // Собираем данные внутри этого года
+                foreach (var sb in yearGroup.SubjectBoards)
                 {
-                    string kach = GetCell(sb, "кач", q);
-                    string usp = GetCell(sb, "усп", q);
-                    string sou = GetCell(sb, "СОУ", q);
-
-                    if (string.IsNullOrWhiteSpace(kach) &&
-                        string.IsNullOrWhiteSpace(usp) &&
-                        string.IsNullOrWhiteSpace(sou))
-                        continue;
-
-                    list.Add(new SubjectQuarterMetric
+                    foreach (var q in new[] { "I2", "II2", "III2", "IV2", "Y" })
                     {
-                        Id = Guid.NewGuid(),
-                        TeachId = SelectedTeach.Id,
-                        AcademicYear = CurrentYear,
-                        Subject = sb.SubjectName,
-                        Quarter = q,
-                        Kach = kach,
-                        Usp = usp,
-                        Sou = sou
-                    });
+                        string kach = GetCell(sb, "кач", q);
+                        string usp = GetCell(sb, "усп", q);
+                        string sou = GetCell(sb, "СОУ", q);
+
+                        // Если все пусто, не сохраняем пустую запись
+                        if (string.IsNullOrWhiteSpace(kach) &&
+                            string.IsNullOrWhiteSpace(usp) &&
+                            string.IsNullOrWhiteSpace(sou))
+                            continue;
+
+                        listToSave.Add(new SubjectQuarterMetric
+                        {
+                            Id = Guid.NewGuid(),
+                            TeachId = SelectedTeach.Id,
+                            AcademicYear = yearGroup.Year, // <--- БЕРЕМ ГОД ИЗ ГРУППЫ
+                            Subject = sb.SubjectName,
+                            Quarter = q,
+                            Kach = kach,
+                            Usp = usp,
+                            Sou = sou
+                        });
+                    }
                 }
+
+                // Сохраняем конкретно этот год. 
+                // Метод SaveSubjectQuarterMetricsAsync удалит старые записи ЗА ЭТОТ ГОД и вставит новые.
+                // Записи за другие года не пострадают.
+                bool ok = await _db.SaveSubjectQuarterMetricsAsync(SelectedTeach.Id, yearGroup.Year, listToSave);
+
+                if (ok) Log($"✔ Таблица 1.1 за {yearGroup.Year} сохранена");
             }
 
-            bool ok = await _db.SaveSubjectQuarterMetricsAsync(SelectedTeach.Id, CurrentYear, list);
-            if (ok) Log($"✔ 1.1 сохранён ({list.Count} строк)");
+            // Перезагружаем, чтобы убедиться, что всё легло корректно
+            await LoadBoardsAsync();
         }
 
         private static string GetCell(SubjectBoard sb, string rowType, string q)
@@ -450,7 +540,7 @@ namespace Ynost.ViewModels
 
             if (result != MessageBoxResult.Yes) return;
 
-            bool success = await _db.DeleteTeachAsync(SelectedTeach.Id);
+            bool success = await _db.DeleteTeacherAsync(SelectedTeach.Id);
             if (success)
             {
                 TeachList.Remove(SelectedTeach);
@@ -491,39 +581,63 @@ namespace Ynost.ViewModels
                           ?.SetValue(target, value);
 
         private void RegisterSection<TRow>(ObservableCollection<TRow> collection, Func<TRow> factory, string selectedPropertyName)
-            where TRow : class, new()
+    where TRow : class, new()
         {
             string name = typeof(TRow).Name.Replace("Teacher", string.Empty);
 
+            // --- ЛОГИКА ДОБАВЛЕНИЯ ---
             var addCmd = new RelayCommand(() =>
             {
                 if (SelectedTeach == null) return;
+
+                // 1. Создаем и заполняем строку
                 var row = factory();
                 SetGuidProp(row, "Id", Guid.NewGuid());
                 SetGuidProp(row, "TeachId", SelectedTeach.Id);
-                SetGuidProp(row, "TeacherId", SelectedTeach.Id);
+                SetGuidProp(row, "TeacherId", SelectedTeach.Id); // На случай путаницы в моделях
+
+                // 2. Добавляем в коллекцию
                 collection.Add(row);
+
+                // 3. !!! ГЛАВНОЕ ИСПРАВЛЕНИЕ: Автоматически выбираем добавленную строку !!!
+                // Это активирует кнопку "Удалить" мгновенно.
+                GetType().GetProperty(selectedPropertyName)?.SetValue(this, row);
+
                 Log($"➕ {name} добавлен");
             });
+
+            // Привязываем созданную команду к свойству ViewModel (например, AddGiaResultCommand)
             GetType().GetProperty($"Add{name}Command")!.SetValue(this, addCmd);
 
+            // --- ЛОГИКА УДАЛЕНИЯ ---
             var selProp = GetType().GetProperty(selectedPropertyName)!;
+
             var delCmd = new RelayCommand(() =>
             {
+                // Получаем текущий выбранный элемент через рефлексию
                 var sel = (TRow?)selProp.GetValue(this);
                 if (sel != null)
                 {
                     collection.Remove(sel);
-                    selProp.SetValue(this, null);
+                    selProp.SetValue(this, null); // Сбрасываем выделение
                     Log($"🗑 {name} удалён");
                 }
-            }, () => selProp.GetValue(this) != null);
+            }, () =>
+            {
+                // Условие активности кнопки: что-то должно быть выбрано
+                return selProp.GetValue(this) != null;
+            });
+
             GetType().GetProperty($"Delete{name}Command")!.SetValue(this, delCmd);
 
+            // Подписываемся на изменение свойства Selected..., чтобы дергать кнопку Удалить
             PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == selectedPropertyName)
+                {
+                    // Как только сменилось выделение, проверяем, активна ли кнопка
                     delCmd.NotifyCanExecuteChanged();
+                }
             };
         }
 
@@ -538,5 +652,11 @@ namespace Ynost.ViewModels
             e.Handled = true;
         }
         #endregion
+
+        public class YearlySubjectGroup
+        {
+            public string Year { get; set; } = string.Empty;
+            public ObservableCollection<SubjectBoard> SubjectBoards { get; } = new();
+        }
     }
 }   

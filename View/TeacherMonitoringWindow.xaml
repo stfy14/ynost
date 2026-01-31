@@ -101,63 +101,72 @@
 
                     <!-- ========== 1.1 Итоги … ========== -->
                     <!-- ===== 1.1 Итоги освоения образовательных программ — по предметам ===== -->
+                    <!-- ===== 1.1 Итоги освоения образовательных программ — по предметам ===== -->
                     <TextBlock Text="1.1 Итоги освоения образовательных программ — по предметам"
            FontWeight="Bold"
            Margin="0,8,0,4"/>
 
-                    <ListBox ItemsSource="{Binding Boards}"
-         SelectedItem="{Binding SelectedBoard, Mode=TwoWay}"
-         BorderThickness="0"
-         Background="Transparent">
-
-                        <ListBox.ItemTemplate>
+                    <!-- Внешний список для группировки по годам -->
+                    <ItemsControl ItemsSource="{Binding YearlyBoards}">
+                        <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="#808"
-                    BorderThickness="0,0,0,1"
-                    Padding="0,0,0,8"
-                    Margin="0,0,0,8">
-                                    <StackPanel>
+                                <StackPanel Margin="0,0,0,15">
+                                    <!-- ЗАГОЛОВОК ГОДА -->
+                                    <TextBlock Text="{Binding Year}" 
+                           FontWeight="Bold" FontSize="18" 
+                           Background="#E0E0E0" Padding="5" Margin="0,0,0,5"/>
 
-                                        <!-- Название предмета -->
-                                        <TextBox Text="{Binding SubjectName, UpdateSourceTrigger=PropertyChanged}"
-                             FontWeight="Bold"
-                             FontSize="14"
-                             Margin="0,0,0,4"/>
-
-                                        <!-- Таблица «кач/усп/СОУ» × 5 -->
-                                        <DataGrid ItemsSource="{Binding Metrics}"
-          AutoGenerateColumns="False"
-          HeadersVisibility="Column"
-          CanUserAddRows="False"
-          MinRowHeight="25">
-
-                                            <!--  ← ЭТОЙ ОБЁРТКИ не хватало!  -->
-                                            <DataGrid.Columns>
-                                                <DataGridTextColumn Header=""      Binding="{Binding Type}"  Width="70"/>
-                                                <DataGridTextColumn Header="I₂"    Binding="{Binding I2}"    Width="70"/>
-                                                <DataGridTextColumn Header="II₂"   Binding="{Binding II2}"   Width="70"/>
-                                                <DataGridTextColumn Header="III₂"  Binding="{Binding III2}"  Width="70"/>
-                                                <DataGridTextColumn Header="IV₂"   Binding="{Binding IV2}"   Width="70"/>
-                                                <DataGridTextColumn Header="Динамика" Binding="{Binding Y}" IsReadOnly="True" Width="70"/>
-                                            </DataGrid.Columns>
-
-                                        </DataGrid>
-
-                                    </StackPanel>
-                                </Border>
+                                    <!-- Внутренний список для предметов этого года -->
+                                    <ListBox ItemsSource="{Binding SubjectBoards}"
+                                             SelectedItem="{Binding DataContext.SelectedBoard, RelativeSource={RelativeSource AncestorType=Window}}"
+                                             BorderThickness="0"
+                                             Background="Transparent">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="#808"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="0,0,0,8"
+                                    Margin="0,0,0,8">
+                                                    <StackPanel>
+                                                        <!-- Название предмета -->
+                                                        <TextBox Text="{Binding SubjectName, UpdateSourceTrigger=PropertyChanged}"
+                                             FontWeight="Bold"
+                                             FontSize="14"
+                                             Margin="0,0,0,4"/>
+                                                        <!-- Таблица «кач/усп/СОУ» × 5 -->
+                                                        <DataGrid ItemsSource="{Binding Metrics}"
+                                              AutoGenerateColumns="False"
+                                              HeadersVisibility="Column"
+                                              CanUserAddRows="False"
+                                              MinRowHeight="25">
+                                                            <DataGrid.Columns>
+                                                                <DataGridTextColumn Header=""      Binding="{Binding Type}"  Width="70"/>
+                                                                <DataGridTextColumn Header="I₂"    Binding="{Binding I2}"    Width="70"/>
+                                                                <DataGridTextColumn Header="II₂"   Binding="{Binding II2}"   Width="70"/>
+                                                                <DataGridTextColumn Header="III₂"  Binding="{Binding III2}"  Width="70"/>
+                                                                <DataGridTextColumn Header="IV₂"   Binding="{Binding IV2}"   Width="70"/>
+                                                                <DataGridTextColumn Header="Динамика" Binding="{Binding Y}" IsReadOnly="True" Width="70"/>
+                                                            </DataGrid.Columns>
+                                                        </DataGrid>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
                             </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
                     <!-- кнопки уже ВНЕ ListBox! -->
                     <StackPanel Orientation="Horizontal" Margin="0,5,0,12">
                         <Button Content="＋"
-            Command="{Binding AddBoardCommand}"
-            MinWidth="30"/>
+        Command="{Binding AddBoardCommand}"
+        MinWidth="30"/>
                         <Button Content="－"
-            Command="{Binding DeleteBoardCommand}"
-            MinWidth="30"
-            Margin="5,0,0,0"/>
+        Command="{Binding DeleteBoardCommand}"
+        MinWidth="30"
+        Margin="5,0,0,0"/>
                     </StackPanel>
 
 

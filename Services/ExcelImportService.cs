@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Ynost.Models;
 using Ynost.ViewModels;
+using static Ynost.ViewModels.TeacherMonitoringViewModel;
 
 namespace Ynost.Services
 {
@@ -201,7 +202,7 @@ namespace Ynost.Services
 
         private void ClearAllCollections(TeacherMonitoringViewModel vm)
         {
-            vm.Boards.Clear();
+            vm.YearlyBoards.Clear();
             vm.GiaResults.Clear(); vm.OgeResults.Clear(); vm.IndependentAssessments.Clear();
             vm.SelfDeterminations.Clear(); vm.StudentOlympiads.Clear(); vm.JuryActivities.Clear();
             vm.MasterClasses.Clear(); vm.Speeches.Clear(); vm.Publications.Clear();
@@ -264,46 +265,62 @@ namespace Ynost.Services
             int titleRow = FindStartRow(sheet, "1.1 Итоги освоения");
             if (titleRow == -1) return;
 
-            int currentRow = titleRow + 2; // Пропускаем заголовок
+            int currentRow = titleRow + 2;
+            YearlySubjectGroup? currentYearGroup = null;
 
             while (true)
             {
                 var row = sheet.Row(currentRow);
                 var cell1 = row.Cell(1);
 
-                if (cell1.IsEmpty()) break; // Конец списка
+                if (cell1.IsEmpty() && row.Cell(2).IsEmpty()) break; // Конец блока данных
 
-                // В экспорте название предмета идет в строке с серым фоном или просто текст
-                // За ним следуют заголовки (I2, II2...), а потом 3 строки данных
-
-                string subjectName = cell1.GetString();
-                var board = new SubjectBoard { SubjectName = subjectName };
-
-                // Следующая строка - заголовки (пропускаем: I2, II2...)
-                currentRow++;
-
-                // Читаем 3 строки метрик (кач, усп, СОУ)
-                // Структура экспорта:
-                // Col 1: Тип, Col 2: I2, Col 3: II2, Col 4: III2, Col 5: IV2
-                for (int i = 0; i < 3; i++)
+                // Проверяем, является ли строка заголовком ГОДА
+                if (cell1.Style.Fill.BackgroundColor == XLColor.LightGray || cell1.Style.Font.FontSize > 14)
                 {
+                    currentYearGroup = new YearlySubjectGroup { Year = cell1.GetString().Trim() };
+                    vm.YearlyBoards.Add(currentYearGroup);
                     currentRow++;
-                    var metricRow = sheet.Row(currentRow);
-                    string type = metricRow.Cell(1).GetString(); // "кач", "усп", "СОУ"
-
-                    var metric = board.Metrics.FirstOrDefault(m => m.Type == type);
-                    if (metric != null)
-                    {
-                        metric.I2 = metricRow.Cell(2).GetString();
-                        metric.II2 = metricRow.Cell(3).GetString();
-                        metric.III2 = metricRow.Cell(4).GetString();
-                        metric.IV2 = metricRow.Cell(5).GetString();
-                        // Динамика (Col 6) вычисляется автоматически в модели
-                    }
+                    continue;
                 }
 
-                vm.Boards.Add(board);
-                currentRow++; // Переход к следующему предмету
+                // Проверяем, является ли строка заголовком ПРЕДМЕТА
+                if (row.IsMerged() || cell1.Style.Font.Bold)
+                {
+                    if (currentYearGroup == null)
+                    {
+                        // Если год не был найден, создаем "неизвестный"
+                        currentYearGroup = new YearlySubjectGroup { Year = "Неизвестный год" };
+                        vm.YearlyBoards.Add(currentYearGroup);
+                    }
+
+                    var board = new SubjectBoard { SubjectName = cell1.GetString().Trim() };
+                    currentYearGroup.SubjectBoards.Add(board);
+
+                    currentRow++; // Пропускаем заголовок предмета
+                    currentRow++; // Пропускаем шапку таблицы (I2, II2...)
+
+                    // Читаем 3 строки метрик
+                    for (int i = 0; i < 3; i++)
+                    {
+                        var metricRow = sheet.Row(currentRow);
+                        string type = metricRow.Cell(1).GetString().Trim();
+                        var metric = board.Metrics.FirstOrDefault(m => m.Type.Equals(type, StringComparison.OrdinalIgnoreCase));
+                        if (metric != null)
+                        {
+                            metric.I2 = metricRow.Cell(2).GetString();
+                            metric.II2 = metricRow.Cell(3).GetString();
+                            metric.III2 = metricRow.Cell(4).GetString();
+                            metric.IV2 = metricRow.Cell(5).GetString();
+                        }
+                        currentRow++;
+                    }
+                }
+                else
+                {
+                    // Если это не заголовок, просто двигаемся дальше, чтобы избежать бесконечного цикла
+                    currentRow++;
+                }
             }
         }
         public void ImportTeacherData(string filePath, TeacherViewModel vm)

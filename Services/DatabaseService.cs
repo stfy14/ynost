@@ -267,11 +267,11 @@ namespace Ynost.Services
         public async Task<List<SubjectQuarterMetric>> LoadSubjectQuarterMetricsAsync(Guid teachId, string year)
         {
             const string sql = @"
-SELECT *
-FROM subject_quarter_metrics
-WHERE teach_id = @teachId
-  AND academic_year = @year
-ORDER BY subject, quarter;";
+                SELECT *
+                FROM subject_quarter_metrics
+                WHERE teach_id = @teachId
+                  AND academic_year = @year
+                ORDER BY subject, quarter;";
 
             try
             {
@@ -282,6 +282,28 @@ ORDER BY subject, quarter;";
             catch (Exception ex)
             {
                 Logger.Write(ex, "LOAD-SQM");
+                return new List<SubjectQuarterMetric>();
+            }
+        }
+
+        /// <summary>Чтение ВСЕХ данных 1.1 для одного преподавателя.</summary>
+        public async Task<List<SubjectQuarterMetric>> LoadAllSubjectQuarterMetricsForTeacherAsync(Guid teachId)
+        {
+            const string sql = @"
+            SELECT *
+            FROM subject_quarter_metrics
+            WHERE teach_id = @teachId
+            ORDER BY academic_year, subject, quarter;"; // Добавили сортировку по году
+
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<SubjectQuarterMetric>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex)
+            {
+                Logger.Write(ex, "LOAD-ALL-SQM");
                 return new List<SubjectQuarterMetric>();
             }
         }
@@ -457,272 +479,19 @@ VALUES (
 
         #region Teacher/Teach Monitoring
 
-        // 1) Load methods for each new table
-
-        public async Task<List<AcademicYearResultTeacher>> LoadAcademicYearResultsTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM academic_year_results_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<AcademicYearResultTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-AYRT");
-                return new List<AcademicYearResultTeacher>();
-            }
-        }
-
-        public async Task<List<AcademicResultTeacher>> LoadAcademicResultsTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM academic_results_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<AcademicResultTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-ART");
-                return new List<AcademicResultTeacher>();
-            }
-        }
-
-        public async Task<List<GiaResultTeacher>> LoadGiaResultsTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM gia_results_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<GiaResultTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-GRT");
-                return new List<GiaResultTeacher>();
-            }
-        }
-
-        public async Task<List<OgeResultTeacher>> LoadOgeResultsTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM oge_results_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<OgeResultTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-OGE");
-                return new List<OgeResultTeacher>();
-            }
-        }
-
-        public async Task<List<IndependentAssessmentTeacher>> LoadIndependentAssessmentsTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM independent_assessments_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<IndependentAssessmentTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-IAT");
-                return new List<IndependentAssessmentTeacher>();
-            }
-        }
-
-        public async Task<List<SelfDeterminationTeacher>> LoadSelfDeterminationsTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM self_determinations_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<SelfDeterminationTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-SDT");
-                return new List<SelfDeterminationTeacher>();
-            }
-        }
-
-        public async Task<List<StudentOlympiadTeacher>> LoadStudentOlympiadsTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM student_olympiads_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<StudentOlympiadTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-SOT");
-                return new List<StudentOlympiadTeacher>();
-            }
-        }
-
-        public async Task<List<JuryActivityTeacher>> LoadJuryActivitiesTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM jury_activities_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<JuryActivityTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-JAT");
-                return new List<JuryActivityTeacher>();
-            }
-        }
-
-        public async Task<List<MasterClassTeacher>> LoadMasterClassesTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM master_classes_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<MasterClassTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-MCT");
-                return new List<MasterClassTeacher>();
-            }
-        }
-
-        public async Task<List<SpeechTeacher>> LoadSpeechesTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM speeches_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<SpeechTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-ST");
-                return new List<SpeechTeacher>();
-            }
-        }
-
-        public async Task<List<PublicationTeacher>> LoadPublicationsTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM publications_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<PublicationTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-PT");
-                return new List<PublicationTeacher>();
-            }
-        }
-
-        public async Task<List<ExperimentalProjectTeacher>> LoadExperimentalProjectsTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM experimental_projects_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<ExperimentalProjectTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-EPT");
-                return new List<ExperimentalProjectTeacher>();
-            }
-        }
-
-        public async Task<List<MentorshipTeacher>> LoadMentorshipsTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM mentorships_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<MentorshipTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-MTT");
-                return new List<MentorshipTeacher>();
-            }
-        }
-
-        public async Task<List<ProgramSupportTeacher>> LoadProgramSupportsTeacherAsync(Guid teachId)
-        {
-            const string sql = @"
-SELECT * FROM program_supports_teacher
-WHERE teach_id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                return (await db.QueryAsync<ProgramSupportTeacher>(sql, new { teachId })).ToList();
-            }
-            catch (Exception ex)
-            {
-                Logger.Write(ex, "LOAD-PST");
-                return new List<ProgramSupportTeacher>();
-            }
-        }
+        // --- 0. СПИСОК УЧИТЕЛЕЙ (ТОТ САМЫЙ МЕТОД, КОТОРЫЙ ПРОПАЛ) ---
         public async Task<List<Teach>> LoadAllTeachesAsync()
         {
             const string sql = @"
-        SELECT id, full_name AS FullName
-        FROM teach
-        ORDER BY full_name;
-    ";
+                SELECT id, full_name AS FullName
+                FROM teach
+                ORDER BY full_name;
+            ";
             try
             {
                 await using var db = Conn(_cs);
                 await db.OpenAsync();
-                var list = (await db.QueryAsync<Teach>(sql)).ToList();
-                return list;
+                return (await db.QueryAsync<Teach>(sql)).ToList();
             }
             catch (Exception ex)
             {
@@ -731,11 +500,194 @@ WHERE teach_id = @teachId";
             }
         }
 
+        // --- 1. Таблица (Итоги года) ---
+        public async Task<List<AcademicYearResultTeacher>> LoadAcademicYearResultsTeacherAsync(Guid teachId)
+        {
+            // Убрали фильтры, добавили сортировку по году (новые сверху)
+            const string sql = @"SELECT * FROM academic_year_results_teacher WHERE teach_id = @teachId ORDER BY academic_year DESC, id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<AcademicYearResultTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-AYRT"); return new List<AcademicYearResultTeacher>(); }
+        }
+
+        // --- 1А. Промежуточные ---
+        public async Task<List<AcademicResultTeacher>> LoadAcademicResultsTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM academic_results_teacher WHERE teach_id = @teachId ORDER BY id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<AcademicResultTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-ART"); return new List<AcademicResultTeacher>(); }
+        }
+
+        // --- 2. ГИА (ЕГЭ) ---
+        public async Task<List<GiaResultTeacher>> LoadGiaResultsTeacherAsync(Guid teachId)
+        {
+            // ГРУЗИТ ВСЁ БЕЗ РАЗБОРА ПО ГОДАМ
+            const string sql = @"SELECT * FROM gia_results_teacher WHERE teach_id = @teachId ORDER BY id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<GiaResultTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-GRT"); return new List<GiaResultTeacher>(); }
+        }
+
+        // --- 3. ГИА (ОГЭ) ---
+        public async Task<List<OgeResultTeacher>> LoadOgeResultsTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM oge_results_teacher WHERE teach_id = @teachId ORDER BY id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<OgeResultTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-OGE"); return new List<OgeResultTeacher>(); }
+        }
+
+        // --- 4. НОКО (Сортируем по дате, если есть) ---
+        public async Task<List<IndependentAssessmentTeacher>> LoadIndependentAssessmentsTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM independent_assessments_teacher WHERE teach_id = @teachId ORDER BY assessment_date DESC, id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<IndependentAssessmentTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-IAT"); return new List<IndependentAssessmentTeacher>(); }
+        }
+
+        // --- 5. Самоопределение ---
+        public async Task<List<SelfDeterminationTeacher>> LoadSelfDeterminationsTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM self_determinations_teacher WHERE teach_id = @teachId ORDER BY id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<SelfDeterminationTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-SDT"); return new List<SelfDeterminationTeacher>(); }
+        }
+
+        // --- 6. Олимпиады ---
+        public async Task<List<StudentOlympiadTeacher>> LoadStudentOlympiadsTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM student_olympiads_teacher WHERE teach_id = @teachId ORDER BY id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<StudentOlympiadTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-SOT"); return new List<StudentOlympiadTeacher>(); }
+        }
+
+        // --- 7. Жюри (Сортировка по дате) ---
+        public async Task<List<JuryActivityTeacher>> LoadJuryActivitiesTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM jury_activities_teacher WHERE teach_id = @teachId ORDER BY event_date DESC, id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<JuryActivityTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-JAT"); return new List<JuryActivityTeacher>(); }
+        }
+
+        // --- 8. Мастер-классы ---
+        public async Task<List<MasterClassTeacher>> LoadMasterClassesTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM master_classes_teacher WHERE teach_id = @teachId ORDER BY event_date DESC, id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<MasterClassTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-MCT"); return new List<MasterClassTeacher>(); }
+        }
+
+        // --- 9. Выступления ---
+        public async Task<List<SpeechTeacher>> LoadSpeechesTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM speeches_teacher WHERE teach_id = @teachId ORDER BY event_date DESC, id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<SpeechTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-ST"); return new List<SpeechTeacher>(); }
+        }
+
+        // --- 10. Публикации ---
+        public async Task<List<PublicationTeacher>> LoadPublicationsTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM publications_teacher WHERE teach_id = @teachId ORDER BY pub_date DESC, id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<PublicationTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-PT"); return new List<PublicationTeacher>(); }
+        }
+
+        // --- 11. Эксперименты ---
+        public async Task<List<ExperimentalProjectTeacher>> LoadExperimentalProjectsTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM experimental_projects_teacher WHERE teach_id = @teachId ORDER BY event_date DESC, id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<ExperimentalProjectTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-EPT"); return new List<ExperimentalProjectTeacher>(); }
+        }
+
+        // --- 12. Наставничество ---
+        public async Task<List<MentorshipTeacher>> LoadMentorshipsTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM mentorships_teacher WHERE teach_id = @teachId ORDER BY order_date DESC, id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<MentorshipTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-MTT"); return new List<MentorshipTeacher>(); }
+        }
+
+        // --- 13. Программы ---
+        public async Task<List<ProgramSupportTeacher>> LoadProgramSupportsTeacherAsync(Guid teachId)
+        {
+            const string sql = @"SELECT * FROM program_supports_teacher WHERE teach_id = @teachId ORDER BY id";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.OpenAsync();
+                return (await db.QueryAsync<ProgramSupportTeacher>(sql, new { teachId })).ToList();
+            }
+            catch (Exception ex) { Logger.Write(ex, "LOAD-PST"); return new List<ProgramSupportTeacher>(); }
+        }
+
+        // --- 14. Конкурсы ---
         public async Task<List<ProfessionalCompetitionTeacher>> LoadProfessionalCompetitionsTeacherAsync(Guid teachId)
         {
-            const string sql = @"
-SELECT * FROM professional_competitions_teacher
-WHERE teach_id = @teachId";
+            const string sql = @"SELECT * FROM professional_competitions_teacher WHERE teach_id = @teachId ORDER BY event_date DESC, id";
             try
             {
                 await using var db = Conn(_cs);
@@ -749,52 +701,32 @@ WHERE teach_id = @teachId";
             }
         }
 
-        // 2) Общий Replace для мониторинга
-
-        private static async Task ReplaceMonitoringAsync<T>(
-     IDbConnection db,
-     IDbTransaction tx,
-     string table,
-     Guid teachId,
-     IEnumerable<T> rows)
+        // --- Метод сохранения (без изменений, просто чтобы регион был полным) ---
+        private static async Task ReplaceMonitoringAsync<T>(IDbConnection db, IDbTransaction tx, string table, Guid teachId, IEnumerable<T> rows)
         {
             var list = rows.ToList();
-
-            // 1. Гарантируем корректный внешний ключ
+            // Гарантируем внешние ключи
             foreach (var r in list)
             {
                 typeof(T).GetProperty("TeachId")?.SetValue(r, teachId);
                 typeof(T).GetProperty("TeacherId")?.SetValue(r, teachId);
             }
 
-            // 2. Удаляем старые строки этого преподавателя
-            await db.ExecuteAsync(
-                $"DELETE FROM {table} WHERE teach_id = @teachId",
-                new { teachId }, tx);
+            // Удаляем старые
+            await db.ExecuteAsync($"DELETE FROM {table} WHERE teach_id = @teachId", new { teachId }, tx);
 
-            if (!list.Any())
-                return;
+            if (!list.Any()) return;
 
-            // 3. Формируем INSERT **без** первичного ключа Id —
-            //    Postgres сам сгенерирует новый UUID (DEFAULT gen_random_uuid()).
-            var props = typeof(T)
-                .GetProperties()
-                .Where(p => !p.Name.Equals("Id", StringComparison.OrdinalIgnoreCase)) // ← ключ исключён
-                .ToList();
-
+            // Вставляем новые
+            var props = typeof(T).GetProperties().Where(p => !p.Name.Equals("Id", StringComparison.OrdinalIgnoreCase)).ToList();
             var columnNames = props.Select(p => p.Name.ToSnake());
             var columns = string.Join(",", columnNames);
             var values = string.Join(",", props.Select(p => "@" + p.Name));
-
             var insertSql = $"INSERT INTO {table} ({columns}) VALUES ({values});";
 
             await db.ExecuteAsync(insertSql, list, tx);
         }
 
-
-        /// <summary>
-        /// Сохраняет все коллекции мониторинга для одного teachId.
-        /// </summary>
         public async Task<bool> SaveTeacherMonitoringAsync(
             Guid teachId,
             IEnumerable<AcademicYearResultTeacher> academicYearResults,
@@ -846,6 +778,36 @@ WHERE teach_id = @teachId";
                 return false;
             }
         }
+
+        // --- Вспомогательные методы для удаления учителей (Teacher vs Teach) ---
+        public async Task<Teach> AddTeachAsync(string fullName)
+        {
+            LastError = null;
+            const string sql = "INSERT INTO teach (full_name) VALUES (@fullName) RETURNING id, full_name";
+            try
+            {
+                await using var db = Conn(_cs);
+                return await db.QuerySingleAsync<Teach>(sql, new { fullName });
+            }
+            catch (Exception ex) { LastError = FormatError(ex); Logger.Write(ex, "DB-ADD-TEACH"); return null; }
+        }
+
+        public async Task<bool> UpdateTeachNameAsync(Guid teachId, string newName)
+        {
+            LastError = null;
+            const string sql = "UPDATE teach SET full_name = @newName WHERE id = @teachId";
+            try
+            {
+                await using var db = Conn(_cs);
+                await db.ExecuteAsync(sql, new { teachId, newName });
+                return true;
+            }
+            catch (Exception ex) { LastError = FormatError(ex); Logger.Write(ex, "DB-UPDATE-TEACH-NAME"); return false; }
+        }
+
+        /// <summary>
+        /// Удаление преподавателя из главного окна (таблица teachers)
+        /// </summary>
         public async Task<bool> DeleteTeacherAsync(Guid teacherId)
         {
             LastError = null;
@@ -855,10 +817,10 @@ WHERE teach_id = @teachId";
                 await db.OpenAsync();
                 await using var tx = await db.BeginTransactionAsync();
 
-                // Список дочерних таблиц для ПРЕПОДАВАТЕЛЕЙ
+                // Список дочерних таблиц для ПРЕПОДАВАТЕЛЕЙ (портфолио)
                 var childTables = new[]
                 {
-                    "academic_year_results", "intermediate_assessments", "gia_results", "demo_exam_results", // ← ДОБАВЛЕНО
+                    "academic_year_results", "intermediate_assessments", "gia_results", "demo_exam_results",
                     "independent_assessments", "self_determinations", "student_olympiads",
                     "jury_activities", "master_classes", "speeches", "publications",
                     "experimental_projects", "mentorships", "program_supports",
@@ -884,83 +846,7 @@ WHERE teach_id = @teachId";
                 return false;
             }
         }
-        public async Task<Teach> AddTeachAsync(string fullName)
-        {
-            LastError = null;
-            // ДОБАВЬТЕ "version" в INSERT и значение "1"
-            const string sql = "INSERT INTO teachers (full_name, version) VALUES (@fullName, 1) RETURNING id, full_name";
-            // Обратите внимание: таблица должна называться так же, как в других методах (teachers или teach)
 
-            try
-            {
-                await using var db = Conn(_cs);
-                return await db.QuerySingleAsync<Teach>(sql, new { fullName });
-            }
-            catch (Exception ex)
-            {
-                LastError = FormatError(ex);
-                Logger.Write(ex, "DB-ADD-TEACH");
-                return null;
-            }
-        }
-        public async Task<bool> UpdateTeachNameAsync(Guid teachId, string newName)
-        {
-            LastError = null;
-            const string sql = "UPDATE teach SET full_name = @newName WHERE id = @teachId";
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.ExecuteAsync(sql, new { teachId, newName });
-                return true;
-            }
-            catch (Exception ex)
-            {
-                LastError = FormatError(ex);
-                Logger.Write(ex, "DB-UPDATE-TEACH-NAME");
-                return false;
-            }
-        }
-        public async Task<bool> DeleteTeachAsync(Guid teachId)
-        {
-            LastError = null;
-            try
-            {
-                await using var db = Conn(_cs);
-                await db.OpenAsync();
-                await using var tx = await db.BeginTransactionAsync();
-
-                // Список дочерних таблиц для УЧИТЕЛЕЙ (мониторинг)
-                var childTables = new[]
-                {
-                    "academic_year_results_teacher", "academic_results_teacher",
-                    "gia_results_teacher", "oge_results_teacher", "independent_assessments_teacher",
-                    "self_determinations_teacher", "student_olympiads_teacher",
-                    "jury_activities_teacher", "master_classes_teacher", "speeches_teacher",
-                    "publications_teacher", "experimental_projects_teacher",
-                    "mentorships_teacher", "program_supports_teacher",
-                    "professional_competitions_teacher", "subject_quarter_metrics"
-                };
-
-                // Удаляем связанные записи
-                foreach (var table in childTables)
-                {
-                    // В этих таблицах ключ называется teach_id
-                    await db.ExecuteAsync($"DELETE FROM {table} WHERE teach_id = @teachId", new { teachId }, tx);
-                }
-
-                // Удаляем самого учителя
-                await db.ExecuteAsync("DELETE FROM teach WHERE id = @teachId", new { teachId }, tx);
-
-                await tx.CommitAsync();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                LastError = FormatError(ex);
-                Logger.Write(ex, "DB-DELETE-TEACH");
-                return false;
-            }
-        }
         internal async Task<bool> SaveTeacherMonitoringAsync(int id, ObservableCollection<AcademicYearResultTeacher> academicYearResults, IEnumerable<AcademicResultTeacher> enumerable1, IEnumerable<GiaResultTeacher> enumerable2, IEnumerable<OgeResultTeacher> enumerable3, IEnumerable<IndependentAssessmentTeacher> enumerable4, IEnumerable<SelfDeterminationTeacher> enumerable5, IEnumerable<StudentOlympiadTeacher> enumerable6, IEnumerable<JuryActivityTeacher> enumerable7, IEnumerable<MasterClassTeacher> enumerable8, IEnumerable<SpeechTeacher> enumerable9, IEnumerable<PublicationTeacher> enumerable10, IEnumerable<ExperimentalProjectTeacher> enumerable11, IEnumerable<MentorshipTeacher> enumerable12, IEnumerable<ProgramSupportTeacher> enumerable13, IEnumerable<ProfessionalCompetitionTeacher> enumerable14)
         {
             throw new NotImplementedException();
