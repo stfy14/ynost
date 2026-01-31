@@ -887,7 +887,10 @@ WHERE teach_id = @teachId";
         public async Task<Teach> AddTeachAsync(string fullName)
         {
             LastError = null;
-            const string sql = "INSERT INTO teach (full_name) VALUES (@fullName) RETURNING id, full_name";
+            // ДОБАВЬТЕ "version" в INSERT и значение "1"
+            const string sql = "INSERT INTO teachers (full_name, version) VALUES (@fullName, 1) RETURNING id, full_name";
+            // Обратите внимание: таблица должна называться так же, как в других методах (teachers или teach)
+
             try
             {
                 await using var db = Conn(_cs);

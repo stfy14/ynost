@@ -157,6 +157,11 @@ namespace Ynost.Models
             private set { /* Setter for Dapper/JSON */ }
         }
 
+        // === ДОБАВИТЬ ЭТО ===
+        [ObservableProperty]
+        private string _intermediate = string.Empty;
+        // ====================
+
         private string _entrySouRate = string.Empty;
         public string EntrySouRate
         {

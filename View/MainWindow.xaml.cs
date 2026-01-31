@@ -227,8 +227,11 @@ namespace Ynost
         #region Прочие заглушки (оставлены пустыми, но с try/catch для логов)
         private void DataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            try { /* реализация при необходимости */ }
-            catch (Exception ex) { Log($"Ошибка в DataGrid_SelectionChanged: {ex}", true); }
+            // Существующий метод (если он был пуст, заполните его)
+            if (sender is DataGrid grid && grid.SelectedItem != null)
+            {
+                grid.ScrollIntoView(grid.SelectedItem);
+            }
         }
 
         private void DataGrid_SelectionChanged_1(object sender, SelectionChangedEventArgs e)

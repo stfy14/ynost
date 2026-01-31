@@ -13,6 +13,7 @@ namespace Ynost.ViewModels
     public partial class TeacherViewModel : ObservableObject
     {
         private readonly Teacher _model;
+        public bool IsNew { get; set; } = false;
 
         // Словарь для хранения всех трекеров изменений
         private readonly Dictionary<Type, IChangeset> _changesets = new();

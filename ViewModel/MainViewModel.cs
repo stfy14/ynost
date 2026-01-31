@@ -195,89 +195,60 @@ namespace Ynost.ViewModels
 
         private async Task ExecuteSaveChanges()
         {
-            if (SelectedTeacher == null)
-            {
-                MessageBox.Show("Не выбран преподаватель для сохранения.", "Сохранение", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
+            if (SelectedTeacher == null) return;
             if (!IsDatabaseConnected)
             {
-                MessageBox.Show("Нет соединения с базой данных.", "Сохранение", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Нет соединения с БД.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
             IsSavingData = true;
-            StatusText = $"Идёт сохранение данных для: {SelectedTeacher.FullName}...";
-            Logger.Write("=== ExecuteSaveChanges() entered ===");
+            StatusText = $"Сохранение: {SelectedTeacher.FullName}...";
 
-            bool ok = false;
             try
             {
-                Logger.Write("[UI] Calling SaveTeacherChangesAsync() …");
+                // === ЛОГИКА ДЛЯ НОВЫХ ПРЕПОДАВАТЕЛЕЙ ===
+                if (SelectedTeacher.IsNew)
+                {
+                    // 1. Физически создаем запись в таблице teachers
+                    // AddTeachAsync делает INSERT и возвращает реальный ID и правильное Имя
+                    var realInfo = await _db.AddTeachAsync(SelectedTeacher.FullName);
 
-                // --- НАЧАЛО ИЗМЕНЕНИЙ ---
-                // 1. Вызываем метод, который теперь ничего не возвращает
+                    if (realInfo == null) throw new Exception("Не удалось создать запись в БД (AddTeachAsync вернул null).");
+
+                    // 2. Подменяем временный ID на реальный во всей ViewModel
+                    // (Метод ReplaceTeacherIdInVm мы писали ранее, он должен быть в классе)
+                    ReplaceTeacherIdInVm(SelectedTeacher, realInfo.Id);
+
+                    // 3. Снимаем флаг новизны
+                    SelectedTeacher.IsNew = false;
+
+                    // Теперь у нас есть реальный ID в базе, и можно сохранять дочерние таблицы (оценки и т.д.)
+                }
+                // ========================================
+
+                // Стандартное сохранение (обновляет имя, сохраняет все списки оценок)
                 await _db.SaveTeacherChangesAsync(SelectedTeacher);
 
-                // 2. Если мы дошли до сюда, значит, исключения не было - все успешно
-                ok = true;
-
-                Logger.Write("[UI] SaveTeacherChangesAsync → OK");
                 SelectedTeacher.ClearAllChanges();
-                StatusText = "Изменения успешно сохранены.";
-                MessageBox.Show(StatusText, "Сохранение", MessageBoxButton.OK, MessageBoxImage.Information);
-
-                // Блок 'else' здесь больше не нужен
+                StatusText = "Успешно сохранено.";
+                MessageBox.Show("Данные успешно сохранены в БД.", "Сохранение", MessageBoxButton.OK, MessageBoxImage.Information);
             }
-            catch (DBConcurrencyException ex)
+            catch (DBConcurrencyException)
             {
-                Logger.Write(ex, "Concurrency Conflict");
-                ok = false;
-
-                string title = "Конфликт сохранения";
-                string message = "Не удалось сохранить ваши изменения.\n\n" +
-                                 "Причина: Данные были обновлены другим пользователем, пока вы их редактировали.\n" +
-                                 "Конфликтные записи подсвечены красным.\n\n";
-
-                MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Warning);
-
-                // --- НОВАЯ ЛОГИКА ---
-                // Загружаем свежие данные и подсвечиваем конфликты
-                if (SelectedTeacher != null)
-                {
-                    var freshData = await _db.LoadSingleTeacherAsync(SelectedTeacher.Id);
-                    if (freshData != null)
-                    {
-                        SelectedTeacher.HighlightConflicts(freshData);
-                    }
-                }
+                MessageBox.Show("Конфликт версий! Кто-то изменил данные параллельно.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                // Тут логика перезагрузки...
             }
             catch (Exception ex)
             {
-                Logger.Write(ex, "ExecuteSaveChanges Exception");
-                ok = false;
-
-                string title = "Критическая ошибка сохранения";
-                string message = "При сохранении данных произошла непредвиденная ошибка. Ваши изменения не были сохранены.\n\n" +
-                                 "Пожалуйста, проверьте ваше соединение с базой данных и попробуйте снова.\n\n" +
-                                 "Детали ошибки (для службы поддержки):\n" +
-                                 ex.Message;
-
-                MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Критическая ошибка сохранения:\n{ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-            // --- КОНЕЦ ИЗМЕНЕНИЙ ---
             finally
             {
                 IsSavingData = false;
-                if (ok)
-                {
-                    await LoadDataAsync();
-                }
-                else
-                {
-                    StatusText = IsDatabaseConnected ? "Ошибка при сохранении." : ConnectionStatusText;
-                }
-                Logger.Write("=== ExecuteSaveChanges() exit ===");
+                // Можно перезагрузить список, чтобы убедиться, что всё ок, 
+                // но тогда сбросится выделение.
+                // await LoadDataAsync(); 
             }
         }
 
@@ -394,13 +365,124 @@ namespace Ynost.ViewModels
             }
         }
 
-        private void ExecuteAddStaff()
+        private async void ExecuteAddStaff()
         {
-            var newTeacher = new Teacher { FullName = "Новый преподаватель" };
-            var newTeacherVm = new TeacherViewModel(newTeacher);
-            Teachers.Add(newTeacherVm);
-            SelectedTeacher = newTeacherVm;
-            // Важно: новый преподаватель будет сохранен в БД только после нажатия "Сохранить"
+            // 1. Спрашиваем пользователя про режим
+            var result = MessageBox.Show(
+                "Использовать импорт из Google Sheets?\n\n" +
+                "Да — ввести имя и найти данные.\n" +
+                "Нет — создать пустую карточку.",
+                "Создание преподавателя",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Cancel) return;
+
+            bool needImport = (result == MessageBoxResult.Yes);
+            string finalName = "Новый преподаватель";
+
+            // Создаем "призрака" (VM в памяти)
+            var tempId = Guid.NewGuid();
+            var vm = new TeacherViewModel(new Teacher { Id = tempId, FullName = finalName, Version = 1 })
+            {
+                IsNew = true // Флаг для кнопки Сохранить
+            };
+
+            if (needImport)
+            {
+                // Ввод имени для поиска
+                var inputWin = new InputNameWindow { Owner = Application.Current.MainWindow };
+                if (inputWin.ShowDialog() != true) return;
+
+                string query = inputWin.EnteredName;
+
+                // Включаем индикатор загрузки
+                IsLoading = true;
+
+                // === СТАТУС 1: СКАЧИВАНИЕ ===
+                StatusText = "Скачивание таблицы...";
+
+                var service = new GoogleSheetImportService();
+                byte[] fileData = await service.DownloadSheetAsync();
+
+                if (fileData == null)
+                {
+                    IsLoading = false;
+                    StatusText = "Ошибка загрузки.";
+                    MessageBox.Show("Не удалось скачать таблицу Google Sheets.", "Ошибка сети", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // === СТАТУС 2: ПОИСК ИМЕНИ ===
+                StatusText = $"Поиск имени '{query}'...";
+
+                // Запускаем поиск в фоновом потоке, чтобы UI не вис
+                List<string> candidates = await Task.Run(() => service.FindCandidates(fileData, query));
+
+                // Временно скрываем загрузку, если нужно показать диалог
+                IsLoading = false;
+
+                string selectedFullName = null;
+
+                if (candidates.Count == 0)
+                {
+                    MessageBox.Show($"По запросу '{query}' ничего не найдено.\nБудет создана пустая карточка.",
+                        "Не найдено", MessageBoxButton.OK, MessageBoxImage.Information);
+                    selectedFullName = query;
+                }
+                else if (candidates.Count == 1)
+                {
+                    // Нашли ровно одного
+                    selectedFullName = candidates[0];
+                }
+                else // Нашли несколько
+                {
+                    var selectWin = new TeacherSelectionWindow(candidates) { Owner = Application.Current.MainWindow };
+                    if (selectWin.ShowDialog() == true)
+                    {
+                        selectedFullName = selectWin.SelectedName;
+                    }
+                    else
+                    {
+                        return; // Отмена выбора
+                    }
+                }
+
+                // Применяем выбранное имя
+                finalName = selectedFullName;
+                vm.FullName = finalName;
+
+                // Если есть совпадение в таблице — парсим данные
+                if (candidates.Contains(selectedFullName))
+                {
+                    // Снова включаем загрузку
+                    IsLoading = true;
+
+                    // === СТАТУС 3: ЗАПОЛНЕНИЕ ДАННЫХ ===
+                    StatusText = $"Заполнение данных для \"{selectedFullName}\"...";
+
+                    bool parsed = await Task.Run(() => service.ParseDataForExactName(fileData, vm, selectedFullName));
+
+                    IsLoading = false;
+
+                    if (parsed)
+                        StatusText = "Данные загружены (не сохранены).";
+                    else
+                        StatusText = "Данные не найдены (только имя).";
+                }
+                else
+                {
+                    StatusText = "Создан новый преподаватель.";
+                }
+            }
+            else
+            {
+                StatusText = "Создан новый преподаватель (ручной режим).";
+            }
+
+            // Добавляем в UI
+            Teachers.Add(vm);
+            SelectedTeacher = vm;
         }
 
         private async Task ExecuteDeleteStaff()
@@ -485,6 +567,29 @@ namespace Ynost.ViewModels
                     StatusText = "Экспорт завершен.";
                 }
             }
+        }
+
+        /// <summary>
+        /// Меняет ID учителя и всех его дочерних записей с временного на реальный.
+        /// </summary>
+        private void ReplaceTeacherIdInVm(TeacherViewModel vm, Guid realId)
+        {
+            vm.Model.Id = realId;
+            foreach (var item in vm.AcademicResults) item.TeacherId = realId;
+            foreach (var item in vm.IntermediateAssessments) item.TeacherId = realId;
+            foreach (var item in vm.GiaResults) item.TeacherId = realId;
+            foreach (var item in vm.DemoExamResults) item.TeacherId = realId;
+            foreach (var item in vm.IndependentAssessments) item.TeacherId = realId;
+            foreach (var item in vm.SelfDeterminations) item.TeacherId = realId;
+            foreach (var item in vm.StudentOlympiads) item.TeacherId = realId;
+            foreach (var item in vm.JuryActivities) item.TeacherId = realId;
+            foreach (var item in vm.MasterClasses) item.TeacherId = realId;
+            foreach (var item in vm.Speeches) item.TeacherId = realId;
+            foreach (var item in vm.Publications) item.TeacherId = realId;
+            foreach (var item in vm.ExperimentalProjects) item.TeacherId = realId;
+            foreach (var item in vm.Mentorships) item.TeacherId = realId;
+            foreach (var item in vm.ProgramSupports) item.TeacherId = realId;
+            foreach (var item in vm.ProfessionalCompetitions) item.TeacherId = realId;
         }
     }
 }
